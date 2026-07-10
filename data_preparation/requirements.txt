@@ -1,0 +1,9 @@
+pandas
+numpy
+requests
+geopandas
+rasterio
+shapely
+tqdm
+matplotlib
+earthengine-api
