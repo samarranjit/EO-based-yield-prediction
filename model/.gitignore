@@ -1,0 +1,42 @@
+# Python
+__pycache__/
+*.py[cod]
+*.egg-info/
+.eggs/
+build/
+dist/
+# Envs
+.venv/
+.env
+# uv
+# (uv.lock IS committed)
+# Data / weights / outputs — never commit
+outputs/*
+!outputs/.gitkeep
+checkpoints/
+*.ckpt
+*.pt
+*.pth
+*.safetensors
+weights/
+cache/
+.cache/
+chips/
+*.tif
+*.tiff
+*.zarr/
+*.npz
+manifests/*.parquet
+lightning_logs/
+wandb/
+tb_logs/
+# Notebooks
+.ipynb_checkpoints/
+# OS
+.DS_Store
+# pytest / mypy / ruff
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+.coverage
+htmlcov/

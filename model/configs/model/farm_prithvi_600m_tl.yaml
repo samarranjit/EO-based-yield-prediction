@@ -1,0 +1,17 @@
+model:
+  backbone_id: ibm-nasa-geospatial/Prithvi-EO-2.0-600M-TL
+  pretrained: true
+  finetune_mode: full
+  use_time_embed: true
+  use_location_embed: true
+  embed_dim: 1280
+  depth: 32
+  out_blocks_one_based: [8, 16, 24, 32]
+  aux_block_one_based: 24
+  temporal_reducer: flatten_time
+  decoder_channels: 1024
+  ppm_bins: [1, 2, 3, 6]
+  multiscale_fpn: false
+  head_dropout: 0.1
+  use_auxiliary: true
+  aux_channels: 256

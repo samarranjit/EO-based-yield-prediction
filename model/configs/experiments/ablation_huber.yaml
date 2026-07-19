@@ -1,0 +1,4 @@
+experiment_name: us_soybeans_huber
+loss:
+  main: huber
+  huber_delta: 1.0

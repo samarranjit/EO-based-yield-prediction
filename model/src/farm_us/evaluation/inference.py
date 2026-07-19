@@ -1,0 +1,81 @@
+"""Georeferenced tiled inference over large state-year rasters.
+
+Slides overlapping windows across a statewide raster (windowed reads), runs the
+model per tile, de-standardizes, blends with :class:`MosaicAccumulator`, masks
+non-crop pixels as no-data, and writes GeoTIFFs preserving CRS/transform/extent.
+"""
+
+from __future__ import annotations
+
+from pathlib import Path
+
+import numpy as np
+import torch
+
+from ..config import FarmConfig
+from ..data.compositing import location_coords, temporal_coords
+from ..data.normalization import NormStats, normalize_image
+from ..utils.geospatial import pixel_to_lonlat, tile_windows
+from .mosaic import MosaicAccumulator
+
+
+@torch.no_grad()
+def predict_state_year(
+    model,
+    reader,
+    cfg: FarmConfig,
+    norm: NormStats,
+    state: str,
+    year: int,
+    device: str = "cpu",
+    stride: int | None = None,
+) -> dict[str, np.ndarray]:
+    """Return dict with 'prediction' [H,W] and 'weight' [H,W] (physical units)."""
+    model.eval().to(device)
+    scaler = norm.target_scaler()
+    h, w = reader.raster_size(state, year)
+    chip = cfg.data.chip_size
+    stride = stride or cfg.data.stride
+    windows = tile_windows(h, w, chip, stride)
+    acc = MosaicAccumulator(h, w)
+    crop_acc = np.zeros((h, w), dtype=bool)
+
+    for win in windows:
+        arr = reader.read_chip(state, year, win)
+        from ..data.dataset import apply_missing_month_policy
+
+        img = apply_missing_month_policy(arr.image, arr.month_valid, cfg.data.missing_month_policy)
+        img = normalize_image(img, norm.band_mean, norm.band_std).astype(np.float32)
+        x = torch.from_numpy(img)[None].to(device)
+
+        tc = lc = None
+        if cfg.model.use_time_embed:
+            tc = torch.from_numpy(temporal_coords(year, cfg.data.n_timesteps))[None].to(device)
+        if cfg.model.use_location_embed:
+            lon, lat = pixel_to_lonlat(arr.transform, chip / 2, chip / 2, arr.crs)
+            lc = torch.from_numpy(location_coords(lat, lon))[None].to(device)
+
+        out = model(x, tc, lc, return_aux=False)
+        pred = out["main"][0, 0].float().cpu().numpy()
+        pred = scaler.inverse(pred)
+        acc.add(pred, win)
+        rs, cs = win.as_slices()
+        crop_acc[rs, cs] |= arr.crop_mask
+
+    prediction, weight = acc.finalize(nodata=np.nan)
+    prediction[~crop_acc] = np.nan  # never fill non-crop pixels
+    return {"prediction": prediction, "weight": weight, "crop_mask": crop_acc}
+
+
+def write_geotiff(path: str | Path, array: np.ndarray, transform, crs, nodata: float = -9999.0) -> None:
+    import rasterio
+
+    path = Path(path)
+    path.parent.mkdir(parents=True, exist_ok=True)
+    a = np.where(np.isfinite(array), array, nodata).astype(np.float32)
+    with rasterio.open(
+        path, "w", driver="GTiff", height=a.shape[0], width=a.shape[1],
+        count=1, dtype="float32", crs=crs, transform=transform, nodata=nodata,
+        compress="deflate",
+    ) as ds:
+        ds.write(a, 1)

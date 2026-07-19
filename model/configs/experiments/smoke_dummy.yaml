@@ -1,0 +1,15 @@
+# Fast CPU smoke config: tiny synthetic run with the dummy backbone.
+experiment_name: smoke_dummy
+data:
+  n_timesteps: 8
+train:
+  epochs: 1
+  batch_size: 2
+  num_workers: 0
+  precision: 32
+  warmup_epochs: 0
+  accelerator: cpu   # MPS lacks non-divisible adaptive-pool (PPM bins); CUDA is fine
+split:
+  policy: explicit_map
+  test_year: 2018
+  val_years: [2017]

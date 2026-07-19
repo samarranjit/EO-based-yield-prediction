@@ -1,0 +1,18 @@
+data:
+  crop: SOYBEANS
+  states: [IL, IA, IN, MN, NE, MO, OH, SD, ND, KS, WI, MI, MD, DE, VA, NC, PA]
+  years: [2014, 2015, 2016, 2017, 2018, 2019, 2020, 2021, 2022, 2023, 2024]
+  reader: geotiff_monthly
+  label_variant: bilinear10km
+  band_order: [BLUE, GREEN, RED, NIR_NARROW, SWIR1, SWIR2]
+  chip_size: 224
+  stride: 224
+  n_timesteps: 8
+  target_crs: EPSG:5070
+  resolution_m: 30.0
+  nodata: -9999.0
+  hls_scale: 1.0e-4
+  missing_month_policy: temporal_interp
+  min_crop_fraction: 0.05
+  min_label_fraction: 0.05
+  exclude_geoids: ["24033"]

@@ -1,0 +1,3 @@
+experiment_name: us_soybeans_mean_reducer
+model:
+  temporal_reducer: mean

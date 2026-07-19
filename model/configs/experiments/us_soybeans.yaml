@@ -1,0 +1,53 @@
+# Primary experiment: US soybeans, Prithvi-EO-2.0-600M-TL, T=8, LOYO.
+# Paper-replication defaults (MSE + auxiliary supervision).
+experiment_name: us_soybeans
+
+data:
+  crop: SOYBEANS
+  label_variant: bilinear10km      # FARM-style smooth pseudo-labels
+  n_timesteps: 8
+  chip_size: 224
+  stride: 224
+  missing_month_policy: temporal_interp
+  # roots resolve to the data_preparation pipeline outputs; imagery root is env-driven
+  label_root: ../data_preparation/data/yield_labels/bilinear
+  cdl_root: ../data_preparation/data/cdl_masks
+  imagery_root: ${oc.env:FARM_IMAGERY_ROOT,../data_preparation/data/hls}
+
+norm:
+  mode: fold_training_statistics   # paper-replication default (US-recomputed)
+  target_scaling: zscore
+
+split:
+  policy: explicit_map
+  split_map_path: configs/splits/loyo_soybeans.yaml
+  test_year: 2018
+  val_years: [2017]
+
+model:
+  backbone_id: ibm-nasa-geospatial/Prithvi-EO-2.0-600M-TL
+  use_time_embed: true
+  use_location_embed: true          # see LOCATION_EMBEDDING_RISK.md (mandatory ablation)
+  finetune_mode: full
+  out_blocks_one_based: [8, 16, 24, 32]
+  aux_block_one_based: 24
+  temporal_reducer: flatten_time
+  decoder_channels: 1024
+  ppm_bins: [1, 2, 3, 6]
+  use_auxiliary: true
+
+loss:
+  main: mse
+  aux_weight: 0.2
+
+train:
+  seed: 0
+  epochs: 120
+  batch_size: 8
+  lr: 5.0e-6
+  min_lr: 1.0e-8
+  weight_decay: 0.1
+  warmup_epochs: 20
+  precision: bf16-mixed
+  ckpt_monitor: val/main_rmse_phys
+  ckpt_mode: min

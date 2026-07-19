@@ -1,0 +1,5 @@
+experiment_name: us_soybeans_no_aux
+model:
+  use_auxiliary: false
+loss:
+  main: mse

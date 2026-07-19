@@ -1,0 +1,7 @@
+model:
+  backbone_id: ibm-nasa-geospatial/Prithvi-EO-2.0-300M-TL
+  embed_dim: 1024
+  depth: 24
+  out_blocks_one_based: [6, 12, 18, 24]
+  aux_block_one_based: 18
+  decoder_channels: 1024

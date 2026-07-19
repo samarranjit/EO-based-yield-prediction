@@ -1,0 +1,6 @@
+experiment_name: barc_finetune_from_farm
+model:
+  finetune_mode: full
+train:
+  epochs: 40
+  lr: 1.0e-5

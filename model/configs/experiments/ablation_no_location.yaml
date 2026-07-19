@@ -1,0 +1,6 @@
+# Mandatory ablation: TL backbone with time embeddings but NO location embeddings.
+# Tests geographic generalization vs. spatial shortcut (LOCATION_EMBEDDING_RISK.md).
+experiment_name: us_soybeans_no_location
+model:
+  use_time_embed: true
+  use_location_embed: false

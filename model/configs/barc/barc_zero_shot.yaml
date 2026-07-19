@@ -1,0 +1,5 @@
+experiment_name: barc_zero_shot
+model:
+  finetune_mode: frozen
+train:
+  epochs: 0

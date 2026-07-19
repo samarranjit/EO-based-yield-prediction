@@ -1,0 +1,7 @@
+experiment_name: barc_train_from_prithvi
+model:
+  finetune_mode: full
+loss:
+  main: huber
+train:
+  epochs: 60

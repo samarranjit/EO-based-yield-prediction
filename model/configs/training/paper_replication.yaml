@@ -1,0 +1,22 @@
+train:
+  seed: 0
+  epochs: 120
+  batch_size: 8
+  grad_accum: 1
+  optimizer: adamw
+  lr: 5.0e-6
+  min_lr: 1.0e-8
+  weight_decay: 0.1
+  warmup_epochs: 20
+  scheduler: cosine
+  precision: bf16-mixed
+  strategy: single
+  early_stopping: false
+loss:
+  main: mse
+  aux_weight: 0.2
+augment:
+  hflip_p: 0.2
+  vflip_p: 0.2
+  noise_p: 0.4
+  noise_std: 0.1
