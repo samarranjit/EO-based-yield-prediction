@@ -153,8 +153,15 @@ def retry_call(label, func, max_retries=4, base_sleep=2.0):
             if attempt == max_retries:
                 break
             wait = base_sleep * (2 ** (attempt - 1)) + random.uniform(0, 1.5)
-            print(f"  WARNING: {label} failed on attempt {attempt}/{max_retries}: {e}")
-            print(f"  Sleeping {wait:.1f} seconds before retry...")
+            print(
+                f"  WARNING: {label} failed on attempt "
+                f"{attempt}/{max_retries}: {e}",
+                flush=True,
+            )   
+            print(
+                f"  Sleeping {wait:.1f} seconds before retry...",
+                flush=True,
+            )
             time.sleep(wait)
     raise last_err
 
@@ -377,8 +384,15 @@ def gdal_http_env_options():
     opts = {
         "GDAL_DISABLE_READDIR_ON_OPEN": "EMPTY_DIR",
         "CPL_VSIL_CURL_ALLOWED_EXTENSIONS": ".tif,.TIF",
+
+        # Prevent remote reads from hanging too long
+        "GDAL_HTTP_CONNECTTIMEOUT": "20",
+        "GDAL_HTTP_TIMEOUT": "180",
+
+        # Retry transient LP DAAC / Earthdata responses
         "GDAL_HTTP_MAX_RETRY": "3",
-        "GDAL_HTTP_RETRY_DELAY": "2",
+        "GDAL_HTTP_RETRY_DELAY": "5",
+
         "GDAL_HTTP_NETRC": "YES",
     }
 
@@ -516,6 +530,35 @@ def band_map_for_item(item):
 
     raise ValueError(f"Cannot identify HLS collection for item {item.id}")
 
+def warm_up_earthdata_gdal(items, args):
+    if len(items) == 0:
+        return
+
+    item = items[0]
+    band_map = band_map_for_item(item)
+    href = item.assets[band_map["fmask"]].href
+
+    print("\nWarming up Earthdata/GDAL remote access...")
+    print(f"Warm-up item: {item.id}")
+    print(f"Warm-up href: {href}", flush=True)
+
+    def _warmup():
+        with rasterio.Env(**gdal_http_env_options()):
+            with rasterio.open(href) as src:
+                _ = src.crs
+                _ = src.transform
+                _ = src.width
+                _ = src.height
+        return True
+
+    retry_call(
+        "Earthdata/GDAL warm-up",
+        _warmup,
+        max_retries=args.max_retries,
+        base_sleep=5.0,
+    )
+
+    print("Earthdata/GDAL warm-up complete.\n", flush=True)
 
 def read_asset_to_target_grid(
     href,
@@ -907,7 +950,19 @@ def process_hls_items_parallel(items, grid, args, crop_mask, sums, counts, row_b
 
         with tqdm(total=len(items), desc=f"{row_base['county_name']} HLS scenes parallel") as pbar:
             while pending:
-                done_futures, pending = wait(pending, return_when=FIRST_COMPLETED)
+                done_futures, pending = wait(
+                                                pending,
+                                                timeout=60,
+                                                return_when=FIRST_COMPLETED,
+                                            )
+
+                if not done_futures:
+                    print(
+                        f"[HEARTBEAT] No scene finished in 60 seconds. "
+                        f"Pending scenes: {len(pending)}",
+                        flush=True,
+                    )
+                    continue
 
                 for fut in done_futures:
                     result = fut.result()
@@ -1227,6 +1282,8 @@ def summarize_county(county_row, catalog, args, out_csv, log_jsonl, fail_jsonl):
         s30_count = sum(1 for i in items if is_s30_item(i))
 
         print(f"HLS items after cloud filter: {len(items)} total ({l30_count} L30, {s30_count} S30)")
+
+        warm_up_earthdata_gdal(items, args)
 
         shape = crop_mask.shape
 
