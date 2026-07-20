@@ -11,3 +11,4 @@ wheels/
 data_preparation/.venv
 data_preparation/outputs
 data_preparation/data
+temp/*
