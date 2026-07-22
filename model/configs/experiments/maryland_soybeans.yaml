@@ -1,0 +1,59 @@
+# Maryland-only experiment: train 2014-2022 + validate on 2023, test (LOYO) on 2024.
+# A restricted, single-state version of us_soybeans.yaml for teaching/small-scale runs.
+experiment_name: maryland_soybeans
+
+data:
+  crop: SOYBEANS
+  states: [MD]                     # restrict to Maryland only (default is all 17 states)
+  label_variant: pseudo            # matches the symlinked filename pattern below
+  n_timesteps: 8
+  chip_size: 224
+  stride: 224
+  missing_month_policy: temporal_interp
+  label_root: ../data_preparation/data/yield_labels/maryland_pseudo
+  cdl_root: ../data_preparation/data/cdl_masks
+  imagery_root: ../data_preparation/data/Maryland/HLS_bands
+  # DataConfig's default counties_path points at data/counties/, which is empty;
+  # the real file lives under data/county_maps/. Used to restrict the CDL mask
+  # to Maryland's actual boundary when selecting which chips have real imagery.
+  counties_path: ../data_preparation/data/county_maps/selected_states_counties_2023.gpkg
+  # exclude_geoids inherits the project default (["24033"], Prince George's Co., MD),
+  # which is deliberately held out everywhere as the BARC transfer-test site.
+
+norm:
+  mode: fold_training_statistics
+  target_scaling: zscore
+
+split:
+  policy: explicit_map
+  split_map_path: configs/splits/loyo_soybeans.yaml
+  test_year: 2024
+  val_years: [2023]                 # checkpoint selection only; never used for training/normalization
+
+model:
+  backbone_id: ibm-nasa-geospatial/Prithvi-EO-2.0-600M-TL
+  use_time_embed: true
+  use_location_embed: true
+  finetune_mode: full
+  out_blocks_one_based: [8, 16, 24, 32]
+  aux_block_one_based: 24
+  temporal_reducer: flatten_time
+  decoder_channels: 1024
+  ppm_bins: [1, 2, 3, 6]
+  use_auxiliary: true
+
+loss:
+  main: mse
+  aux_weight: 0.2
+
+train:
+  seed: 0
+  epochs: 120
+  batch_size: 8
+  lr: 5.0e-6
+  min_lr: 1.0e-8
+  weight_decay: 0.1
+  warmup_epochs: 20
+  precision: bf16-mixed
+  ckpt_monitor: val/main_rmse_phys
+  ckpt_mode: min

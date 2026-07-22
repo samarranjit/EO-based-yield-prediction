@@ -76,6 +76,7 @@ def train_fold(cfg: FarmConfig, use_dummy: bool = True, dummy_embed_dim: int = 3
     dm = FarmDataModule(cfg, synthetic=use_dummy, n_synth=8)
     dm.setup()
     stats = compute_fold_stats(cfg, dm)
+    dm.apply_norm_stats(stats)
 
     out_dir = Path(cfg.train.output_dir) / cfg.experiment_name / f"test{fold.test_year}"
     out_dir.mkdir(parents=True, exist_ok=True)
@@ -101,6 +102,7 @@ def evaluate_fold(cfg: FarmConfig, checkpoint: str | None = None, use_dummy: boo
     dm = FarmDataModule(cfg, synthetic=use_dummy, n_synth=8)
     dm.setup()
     stats = compute_fold_stats(cfg, dm)
+    dm.apply_norm_stats(stats)
 
     if checkpoint:
         lm = FarmLightningModule.load_from_checkpoint(checkpoint, cfg=cfg, use_dummy=use_dummy, dummy_embed_dim=32)

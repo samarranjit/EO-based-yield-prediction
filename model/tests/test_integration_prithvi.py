@@ -44,5 +44,9 @@ def test_real_farm_model_forward():
         m = FarmModel(cfg, n_timesteps=8, use_dummy=False)
     except BackboneNotAvailable as e:
         pytest.skip(f"TerraTorch/Prithvi not available: {e}")
+    # batch=1 is an inference-shaped operating point: the PPM's global-pool bin
+    # (spatial 1x1) + BatchNorm is undefined at batch=1 in train mode. Training
+    # uses batch>=2 (paper: 8); inference uses eval() with running stats.
+    m.eval()
     out = m(torch.randn(1, 6, 8, 224, 224), torch.zeros(1, 8, 2), torch.zeros(1, 2))
     assert out["main"].shape == (1, 1, 224, 224)

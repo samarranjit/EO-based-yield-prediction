@@ -20,11 +20,14 @@ import numpy as np
 import torch
 from torch.utils.data import Dataset
 
-from ..config import FarmConfig
+from ..config import STATE_FIPS, FarmConfig
+from ..utils.logging import get_logger
 from . import masks as M
 from .compositing import location_coords, temporal_coords
 from .normalization import NormStats, normalize_image
 from .transforms import AlignedAugment
+
+logger = get_logger(__name__)
 
 # --------------------------------------------------------------------------- #
 # Missing-month policy
@@ -214,6 +217,89 @@ def cfg_chip(cfg: FarmConfig) -> int:
 
 
 # --------------------------------------------------------------------------- #
+# Manifest QC: which candidate chips actually have usable imagery.
+#
+# build_manifest() enumerates every chip window across the full raster grid
+# with no crop-fraction filter (deferred by design -- see manifest.py). For a
+# real training run that means most rows can point at chips outside a
+# chip-gated imagery download's populated footprint (all-nodata reads,
+# zero-weight in the loss, but a full wasted Prithvi forward/backward pass).
+# This computes, per (state, year), exactly which chip windows clear
+# min_crop_fraction *within the requested state's boundary* -- the same
+# state-boundary-masked CDL logic used by the HLS download pipeline -- so
+# training only ever touches chips that were actually fetched.
+# --------------------------------------------------------------------------- #
+
+def _qualifying_chip_set(
+    cdl_path,
+    county_gpkg: str,
+    state_fips: str,
+    chip_size: int,
+    min_crop_fraction: float,
+) -> set[tuple[int, int]]:
+    import geopandas as gpd
+    import rasterio
+    from rasterio.features import rasterize
+
+    with rasterio.open(cdl_path) as src:
+        crop = src.read(1) > 0.5
+        transform, crs = src.transform, src.crs
+
+    counties = gpd.read_file(county_gpkg)
+    state_counties = counties[counties["STATEFP"] == state_fips]
+    if state_counties.empty:
+        raise ValueError(f"No counties found for STATEFP={state_fips!r} in {county_gpkg}")
+    if state_counties.crs != crs:
+        state_counties = state_counties.to_crs(crs)
+
+    state_mask = rasterize(
+        [(geom, 1) for geom in state_counties.geometry],
+        out_shape=crop.shape, transform=transform, fill=0, dtype="uint8", all_touched=False,
+    ).astype(bool)
+    crop = crop & state_mask
+
+    height, width = crop.shape
+    qualifying: set[tuple[int, int]] = set()
+    for row0 in range(0, height, chip_size):
+        for col0 in range(0, width, chip_size):
+            if row0 + chip_size > height or col0 + chip_size > width:
+                continue
+            block = crop[row0:row0 + chip_size, col0:col0 + chip_size]
+            if float(block.mean()) >= min_crop_fraction:
+                qualifying.add((row0, col0))
+    return qualifying
+
+
+def filter_manifest_to_qualifying_chips(df, cfg: FarmConfig):
+    """Drop manifest rows whose window isn't in the state-masked qualifying set."""
+    from pathlib import Path
+
+    cache: dict[tuple[str, int], set[tuple[int, int]]] = {}
+    keep = np.zeros(len(df), dtype=bool)
+
+    for (state, year), group in df.groupby(["state", "year"]):
+        key = (state, int(year))
+        if key not in cache:
+            cdl_path = Path(cfg.data.cdl_root) / f"cdl_{cfg.data.crop.lower()}_{state}_{year}.tif"
+            state_fips = STATE_FIPS.get(state)
+            if not cdl_path.exists() or state_fips is None:
+                cache[key] = set()
+            else:
+                cache[key] = _qualifying_chip_set(
+                    cdl_path, cfg.data.counties_path, state_fips,
+                    cfg.data.chip_size, cfg.data.min_crop_fraction,
+                )
+        qualifying = cache[key]
+        idx = group.index
+        rows = group[["row_off", "col_off"]].itertuples(index=False)
+        keep[df.index.get_indexer(idx)] = [
+            (int(r.row_off), int(r.col_off)) in qualifying for r in rows
+        ]
+
+    return df[keep]
+
+
+# --------------------------------------------------------------------------- #
 # Lightning DataModule
 # --------------------------------------------------------------------------- #
 
@@ -221,7 +307,9 @@ class FarmDataModule:
     """Minimal DataModule (works with plain PyTorch and Lightning Trainer).
 
     For the synthetic path (tests / smoke) it builds SyntheticFarmDatasets. The
-    real path is wired via ``from_manifest`` (not exercised without imagery).
+    real path reads the manifest, restricts it to chips with actual imagery
+    (see filter_manifest_to_qualifying_chips), and builds FarmChipDatasets for
+    the fold's train/val/test years via a windowed RasterReader.
     """
 
     def __init__(self, cfg: FarmConfig, synthetic: bool = True, n_synth: int = 8) -> None:
@@ -237,7 +325,69 @@ class FarmDataModule:
             self.val_ds = SyntheticFarmDataset(max(2, self.n_synth // 2), n_timesteps=T, year=self.cfg.split.val_years[0], seed=1)
             self.test_ds = SyntheticFarmDataset(max(2, self.n_synth // 2), n_timesteps=T, year=self.cfg.split.test_year, seed=2)
         else:
-            raise NotImplementedError("Real manifest wiring lives in scripts/build_manifest + trainer.")
+            self._setup_real()
+
+    def _setup_real(self) -> None:
+        import pandas as pd
+
+        from .raster_readers import build_reader
+        from .splits import load_split_map, make_fold
+
+        cfg = self.cfg
+        df = pd.read_parquet(cfg.data.manifest_path)
+        df = df[df["state"].isin(cfg.data.states)]
+
+        before = len(df)
+        df = filter_manifest_to_qualifying_chips(df, cfg)
+        logger.info("manifest QC: %d/%d chips have qualifying imagery", len(df), before)
+
+        smap = None
+        if cfg.split.policy == "explicit_map":
+            try:
+                smap = load_split_map(cfg.split.split_map_path)
+            except Exception:
+                smap = None
+        fold = make_fold(cfg.split.test_year, cfg.data.years, cfg.split.val_years,
+                          policy=cfg.split.policy, split_map=smap)
+
+        reader = build_reader(cfg.data)
+        identity_stats = NormStats(
+            band_mean=[0.0] * len(cfg.data.band_order),
+            band_std=[1.0] * len(cfg.data.band_order),
+            target={"mode": "none"}, mode="identity", train_years=[],
+        )
+
+        def records_for(years):
+            sub = df[df["year"].isin(years)]
+            return [
+                SampleRecord(
+                    sample_id=row.sample_id, state=row.state, year=int(row.year),
+                    row_off=int(row.row_off), col_off=int(row.col_off),
+                    lat=row.center_lat, lon=row.center_lon,
+                )
+                for row in sub.itertuples()
+            ]
+
+        self.train_ds = FarmChipDataset(records_for(fold.train_years), cfg, reader, identity_stats, augment=True)
+        self.val_ds = FarmChipDataset(records_for(fold.val_years), cfg, reader, identity_stats, augment=False)
+        self.test_ds = FarmChipDataset(records_for([fold.test_year]), cfg, reader, identity_stats, augment=False)
+
+    def apply_norm_stats(self, stats: NormStats) -> None:
+        """Re-inject train-fold-only stats into already-built real datasets.
+
+        Datasets are first built with identity stats so compute_fold_stats()
+        can measure real per-band/target statistics from *raw* pixel values;
+        this applies the measured stats before any dataloader is actually
+        iterated for training/eval. No-op for the synthetic path (those
+        datasets never normalize internally).
+        """
+        if self.synthetic:
+            return
+        scaler = stats.target_scaler()
+        for ds in (self.train_ds, self.val_ds, self.test_ds):
+            if ds is not None:
+                ds.norm = stats
+                ds.scaler = scaler
 
     def _loader(self, ds, shuffle: bool):
         from torch.utils.data import DataLoader

@@ -22,6 +22,8 @@ logger = get_logger("farm_us.cli")
 
 def _common(sub):
     sub.add_argument("--config", default=None, help="YAML config path")
+    sub.add_argument("--real", action="store_true",
+                     help="use the real Prithvi backbone instead of the dummy one")
     sub.add_argument("overrides", nargs="*", help="key=value overrides")
     return sub
 
@@ -115,8 +117,14 @@ def cmd_inspect_batch(args):
     cfg = _cfg(args)
     from .data.dataset import FarmDataModule
 
-    dm = FarmDataModule(cfg, synthetic=True, n_synth=4)
+    use_real = "--real" in sys.argv
+    dm = FarmDataModule(cfg, synthetic=not use_real, n_synth=4)
     dm.setup()
+    if use_real:
+        from .training.run import compute_fold_stats
+
+        stats = compute_fold_stats(cfg, dm)
+        dm.apply_norm_stats(stats)
     batch = next(iter(dm.train_dataloader()))
     for k, v in batch.items():
         if hasattr(v, "shape"):
