@@ -59,6 +59,16 @@ def summarize(df: pd.DataFrame, out_dir: str | Path) -> dict:
     if "pixels" in df.attrs:
         p, t = df.attrs["pixels"]
         result["global_pixel"] = global_pixel_metrics(p, t, np.ones_like(p))
+        # Persist the raw valid-pixel arrays. They are the ONLY input the three
+        # plots below need, and without them a re-plot (different alpha, extra
+        # chart type) costs a full re-evaluation -- for the real model that is
+        # ~1h, almost all of it recomputing fold normalization stats. float32
+        # keeps this ~8 MB per million pixels; see scripts/replot_eval.py.
+        np.savez_compressed(
+            out_dir / "eval_pixels.npz",
+            pred=np.asarray(p, dtype=np.float32),
+            target=np.asarray(t, dtype=np.float32),
+        )
         plots.scatter_obs_pred(p, t, out_dir / "scatter_obs_pred.png")
         plots.residual_hist(p, t, out_dir / "residual_hist.png")
         plots.residual_vs_obs(p, t, out_dir / "residual_vs_obs.png")

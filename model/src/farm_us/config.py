@@ -186,6 +186,15 @@ class TrainConfig:
     output_dir: str = "outputs/runs"
     ckpt_monitor: str = "val/main_rmse_phys"
     ckpt_mode: str = "min"
+    # Independent of the best/last checkpoints above: Lightning's save_last only
+    # refreshes when the monitored metric ALSO improves that epoch (confirmed by
+    # reading ModelCheckpoint's source directly), so a long plateau leaves no
+    # recoverable weights past the last-best epoch. This periodic saver is keyed
+    # on recency (monitor=None) instead, so it can't get stuck the same way -- a
+    # single rolling snapshot, overwritten every N epochs (Lightning only allows
+    # save_top_k in {0, 1, -1} when monitor=None; -1 keeps every one ever saved,
+    # unbounded, so 1 is the efficient choice here).
+    periodic_ckpt_every_n_epochs: int = 10
 
 
 @dataclass

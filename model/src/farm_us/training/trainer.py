@@ -49,8 +49,26 @@ def build_trainer(
         save_last=True,
         auto_insert_metric_name=False,
     )
+    # save_last=True above only refreshes when this ModelCheckpoint's OWN monitored
+    # metric improves that epoch -- during a long plateau (our real run went 43
+    # epochs without a new best) it never fires, leaving no recoverable weights
+    # past the last-best epoch even though training kept going. This one is keyed
+    # on recency (monitor=None) instead, so it can't stall the same way: one
+    # rolling, resumable snapshot, overwritten every N epochs. (Lightning requires
+    # save_top_k in {0, 1, -1} when monitor=None; -1 would keep every periodic
+    # snapshot ever made, unbounded -- 1 is the efficient choice.)
+    periodic_ckpt = ModelCheckpoint(
+        dirpath=str(out / "checkpoints"),
+        filename="farm-periodic-{epoch:03d}",
+        monitor=None,
+        every_n_epochs=cfg.train.periodic_ckpt_every_n_epochs,
+        save_top_k=1,
+        save_last=False,
+        auto_insert_metric_name=False,
+    )
     callbacks: list[L.Callback] = [
         ckpt,
+        periodic_ckpt,
         LearningRateMonitor(logging_interval="epoch"),
         ProvenanceCallback(cfg, fold, out_dir, norm_stats, manifest_fp),
         ThroughputMemoryCallback(),

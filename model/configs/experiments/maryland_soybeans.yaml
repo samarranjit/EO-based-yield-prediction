@@ -6,6 +6,13 @@ data:
   crop: SOYBEANS
   states: [MD]                     # restrict to Maryland only (default is all 17 states)
   label_variant: pseudo            # matches the symlinked filename pattern below
+  # The pseudo_yield_files rasters are bu/ac, NOT kg/ha (DataConfig's default).
+  # Confirmed via the file's own band description: "pseudo_yield_bu_ac"
+  # (distribute_county_yield_to_pixels.py never converts -- it's bu/ac by design).
+  # This is a metadata/reporting label only (see manifest.py) with zero effect on
+  # training/normalization -- but every "kg/ha" number reported against this
+  # experiment before this fix was mislabeled bu/ac data.
+  label_units: bu_ac
   n_timesteps: 8
   chip_size: 224
   stride: 224
@@ -49,7 +56,20 @@ loss:
 train:
   seed: 0
   epochs: 120
-  batch_size: 8
+  # batch_size=8 (paper default) OOMs on this 47.26 GiB GPU: real training hit
+  # 46.3 GB and crashed. NOTE: the first profile-memory measurement here (26.6 GB
+  # at batch=4) was wrong -- that tool omitted optimizer.step() entirely and so
+  # never allocated AdamW's exp_avg/exp_avg_sq buffers for the 825M trainable
+  # params (~10-15 GB missed). Fixed profile-memory to build a real AdamW
+  # optimizer and take one real step, matching lightning_module.py exactly, then
+  # re-profiled. batch=4/accum=2 STILL OOMs with the corrected tool (45-47 GB).
+  # batch=2/accum=4 (still effective_batch=8, matching the paper) profiles at a
+  # safe 33.8 GB. gradient_checkpointing was tested and made no measurable
+  # difference here -- it wraps the entire 32-block encoder as one checkpoint
+  # unit rather than per-block, so it isn't actually saving activation memory
+  # for this architecture; left off since it only adds recompute cost for free.
+  batch_size: 2
+  grad_accum: 4
   lr: 5.0e-6
   min_lr: 1.0e-8
   weight_decay: 0.1

@@ -66,7 +66,7 @@ def compute_fold_stats(cfg: FarmConfig, dm: FarmDataModule) -> NormStats:
     return stats
 
 
-def train_fold(cfg: FarmConfig, use_dummy: bool = True, dummy_embed_dim: int = 32):
+def train_fold(cfg: FarmConfig, use_dummy: bool = True, dummy_embed_dim: int = 32, resume_from: str | None = None):
     import lightning as L
 
     seed_everything(cfg.train.seed)
@@ -90,7 +90,9 @@ def train_fold(cfg: FarmConfig, use_dummy: bool = True, dummy_embed_dim: int = 3
 
     trainer = build_trainer(cfg, fold, str(out_dir), stats.__dict__, manifest_fp="synthetic")
     if isinstance(trainer, L.Trainer):
-        trainer.fit(lm, dm.train_dataloader(), dm.val_dataloader())
+        if resume_from:
+            logger.info("Resuming from checkpoint: %s", resume_from)
+        trainer.fit(lm, dm.train_dataloader(), dm.val_dataloader(), ckpt_path=resume_from)
         logger.info("Best checkpoint: %s", getattr(trainer.checkpoint_callback, "best_model_path", None))
     return lm, dm, stats, out_dir
 
@@ -109,10 +111,21 @@ def evaluate_fold(cfg: FarmConfig, checkpoint: str | None = None, use_dummy: boo
     else:
         lm = FarmLightningModule(cfg, use_dummy=use_dummy, dummy_embed_dim=32)
     scaler = stats.target_scaler()
-    df = evaluate_loader(lm.model, dm.test_dataloader(), scaler)
-    out_dir = Path(cfg.train.output_dir) / cfg.experiment_name / f"test{fold.test_year}" / "eval"
+    import torch
+
+    device = "cuda" if torch.cuda.is_available() else "cpu"
+    logger.info("Evaluating on %s", device)
+    df = evaluate_loader(lm.model, dm.test_dataloader(), scaler, device=device)
+    # Keyed on the checkpoint's own filename, not a fixed "eval/" path -- otherwise
+    # evaluating a later checkpoint (e.g. after resuming training) silently
+    # overwrites every plot/CSV from a previous checkpoint's evaluation, with no
+    # record anything was ever there. Re-evaluating the SAME checkpoint still
+    # overwrites its own prior run, which is correct (identical inputs -> identical
+    # output, nothing worth preserving twice).
+    ckpt_tag = Path(checkpoint).stem if checkpoint else "no_checkpoint"
+    out_dir = Path(cfg.train.output_dir) / cfg.experiment_name / f"test{fold.test_year}" / "eval" / ckpt_tag
     res = summarize(df, out_dir)
-    logger.info("Eval (test year %s): %s", fold.test_year, res.get("global_pixel"))
+    logger.info("Eval (test year %s, checkpoint %s): %s", fold.test_year, ckpt_tag, res.get("global_pixel"))
     return res
 
 

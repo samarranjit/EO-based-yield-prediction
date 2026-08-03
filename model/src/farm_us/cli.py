@@ -35,6 +35,7 @@ _ALIASES = {
     "state": "_ignore.state",
     "year": "_ignore.year",
     "checkpoint": "_ignore.checkpoint",
+    "resume_from": "_ignore.resume_from",
 }
 
 
@@ -169,17 +170,37 @@ def cmd_profile_memory(args):
     dev = "cuda" if torch.cuda.is_available() else "cpu"
     m = FarmModel(cfg.model, n_timesteps=cfg.data.n_timesteps, chip_size=cfg.data.chip_size,
                   use_dummy=use_dummy, dummy_embed_dim=32).to(dev)
-    x = torch.randn(cfg.train.batch_size, 6, cfg.data.n_timesteps, 224, 224, device=dev)
-    tgt = torch.randn(cfg.train.batch_size, 1, 224, 224, device=dev)
-    mask = torch.ones_like(tgt)
+
+    # Mirror real training exactly (lightning_module.py.configure_optimizers): a plain
+    # AdamW over all trainable params. Momentum/variance buffers only get allocated on
+    # the FIRST optimizer.step(), so a forward+backward-only probe (the old behavior
+    # here) silently omits ~2x the trainable-param memory footprint (fp32 exp_avg +
+    # exp_avg_sq) and understates peak usage by many GB for a fully-unfrozen 600M+
+    # backbone. Also autocast to bf16 to match train.precision=bf16-mixed.
+    opt = torch.optim.AdamW(
+        [p for p in m.parameters() if p.requires_grad],
+        lr=cfg.train.lr, weight_decay=cfg.train.weight_decay,
+    )
+    autocast_dtype = torch.bfloat16 if "bf16" in cfg.train.precision else torch.float32
+
     if dev == "cuda":
         torch.cuda.reset_peak_memory_stats()
-    out = m(x, torch.zeros(cfg.train.batch_size, cfg.data.n_timesteps, 2, device=dev),
-            torch.zeros(cfg.train.batch_size, 2, device=dev))
-    loss, _ = masked_mse(out["main"], tgt, mask)
-    if out["aux"] is not None:
-        aux, _ = masked_mse(out["aux"], tgt, mask); loss = loss + 0.2 * aux
-    loss.backward()
+
+    grad_accum = max(1, cfg.train.grad_accum)
+    for _ in range(grad_accum):
+        x = torch.randn(cfg.train.batch_size, 6, cfg.data.n_timesteps, 224, 224, device=dev)
+        tgt = torch.randn(cfg.train.batch_size, 1, 224, 224, device=dev)
+        mask = torch.ones_like(tgt)
+        with torch.autocast(device_type=dev, dtype=autocast_dtype, enabled=(dev == "cuda")):
+            out = m(x, torch.zeros(cfg.train.batch_size, cfg.data.n_timesteps, 2, device=dev),
+                    torch.zeros(cfg.train.batch_size, 2, device=dev))
+            loss, _ = masked_mse(out["main"], tgt, mask)
+            if out["aux"] is not None:
+                aux, _ = masked_mse(out["aux"], tgt, mask); loss = loss + 0.2 * aux
+            loss = loss / grad_accum
+        loss.backward()
+    opt.step()  # allocates AdamW's exp_avg/exp_avg_sq on first call -- this is the real peak
+    opt.zero_grad(set_to_none=True)
     from .training.trainer import effective_batch_size
 
     info = {"device": dev, "physical_batch": cfg.train.batch_size,
@@ -193,7 +214,8 @@ def cmd_profile_memory(args):
 def cmd_train(args):
     from .training.run import train_fold
 
-    train_fold(_cfg(args), use_dummy="--real" not in sys.argv)
+    resume_from = _kv(args.overrides, "resume_from")
+    train_fold(_cfg(args), use_dummy="--real" not in sys.argv, resume_from=resume_from)
 
 
 def cmd_evaluate(args):
