@@ -232,6 +232,7 @@ def cfg_chip(cfg: FarmConfig) -> int:
 
 def _qualifying_chip_set(
     cdl_path,
+    label_path,
     county_gpkg: str,
     state_fips: str,
     chip_size: int,
@@ -241,9 +242,24 @@ def _qualifying_chip_set(
     import rasterio
     from rasterio.features import rasterize
 
+    from .raster_readers import _aligned_window
+
+    # Chip windows in the manifest are in LABEL pixel coordinates (manifest.py
+    # enumerates them from the label raster's height/width), but the crop
+    # fraction is measured on the CDL. Those two rasters are not on the same
+    # grid -- for MD the label sits one 30 m pixel east -- so reading the CDL
+    # at raw label coordinates would gate each chip on ground ~30 m from the
+    # one actually supervised. Read the CDL onto the label grid instead.
+    with rasterio.open(label_path) as lsrc:
+        transform, crs = lsrc.transform, lsrc.crs
+        lheight, lwidth = lsrc.height, lsrc.width
+        bounds = tuple(lsrc.bounds)
+
     with rasterio.open(cdl_path) as src:
-        crop = src.read(1) > 0.5
-        transform, crs = src.transform, src.crs
+        cw = _aligned_window(src, bounds, str(cdl_path))
+        crop = src.read(1, window=cw, boundless=True, fill_value=0) > 0.5
+    if crop.shape != (lheight, lwidth):
+        raise ValueError(f"aligned CDL {crop.shape} != label grid {(lheight, lwidth)}")
 
     counties = gpd.read_file(county_gpkg)
     state_counties = counties[counties["STATEFP"] == state_fips]
@@ -274,19 +290,25 @@ def filter_manifest_to_qualifying_chips(df, cfg: FarmConfig):
     """Drop manifest rows whose window isn't in the state-masked qualifying set."""
     from pathlib import Path
 
+    from .raster_readers import build_reader
+
     cache: dict[tuple[str, int], set[tuple[int, int]]] = {}
     keep = np.zeros(len(df), dtype=bool)
+    # Reuse the reader's path convention rather than re-deriving the label
+    # filename here; the two must not drift apart.
+    reader = build_reader(cfg.data)
 
     for (state, year), group in df.groupby(["state", "year"]):
         key = (state, int(year))
         if key not in cache:
             cdl_path = Path(cfg.data.cdl_root) / f"cdl_{cfg.data.crop.lower()}_{state}_{year}.tif"
+            label_path = reader._label_path(state, int(year))
             state_fips = STATE_FIPS.get(state)
-            if not cdl_path.exists() or state_fips is None:
+            if not cdl_path.exists() or not label_path.exists() or state_fips is None:
                 cache[key] = set()
             else:
                 cache[key] = _qualifying_chip_set(
-                    cdl_path, cfg.data.counties_path, state_fips,
+                    cdl_path, label_path, cfg.data.counties_path, state_fips,
                     cfg.data.chip_size, cfg.data.min_crop_fraction,
                 )
         qualifying = cache[key]
