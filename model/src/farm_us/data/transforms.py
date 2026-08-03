@@ -6,8 +6,13 @@ is added AFTER normalization, only to the image, never to labels/masks.
 
 Paper augmentations: H-flip p=0.2, V-flip p=0.2, Gaussian noise p=0.4.
 
-Image tensor layout is ``[C, T, H, W]`` → height axis = -2, width axis = -1.
-2-D companion arrays (label/masks/county_id) are ``[H, W]`` → axes (0, 1).
+Every array is flipped on its LAST TWO axes (height = -2, width = -1), which is
+correct regardless of leading dimensions: the image is ``[C, T, H, W]``, the
+label is ``[1, H, W]`` (channel-first, as the model expects), and the masks are
+plain ``[H, W]``. Indexing companions by positive axes (0, 1) instead silently
+mis-flips any array with a leading axis -- for the ``[1, H, W]`` label that
+mirrored height on an h-flip and did nothing at all on a v-flip, desynchronising
+labels from their masks on ~36% of samples. See test_augmentations.py.
 """
 
 from __future__ import annotations
@@ -40,9 +45,9 @@ class AlignedAugment:
             if v is None:
                 continue
             if flip_w:
-                v = np.flip(v, axis=1)
+                v = np.flip(v, axis=-1)
             if flip_h:
-                v = np.flip(v, axis=0)
+                v = np.flip(v, axis=-2)
             sample[k] = np.ascontiguousarray(v)
 
         if self.rng.random() < self.cfg.noise_p:
