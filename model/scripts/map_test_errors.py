@@ -19,6 +19,8 @@ Example:
 import sys
 from pathlib import Path
 
+import numpy as np
+
 from farm_us.cli import _expand_overrides, _kv
 from farm_us.config import load_config
 
@@ -70,14 +72,31 @@ def main(argv):
 
     out_dir = Path("outputs/predictions")
     stem = f"{cfg.data.crop.lower()}_{state}_{year}"
+
+    # _pred / _actual / _residual share ONE footprint (comparison_mask) so the
+    # maps are directly comparable. _pred_full is the unrestricted model surface
+    # -- it legitimately covers crop pixels with no test label, so it must never
+    # be compared against _actual.
     write_geotiff(out_dir / f"{stem}_pred.tif", res["prediction"], transform, crs, nodata=cfg.data.nodata)
     write_geotiff(out_dir / f"{stem}_actual.tif", res["actual"], transform, crs, nodata=cfg.data.nodata)
     write_geotiff(out_dir / f"{stem}_residual.tif", res["residual"], transform, crs, nodata=cfg.data.nodata)
+    write_geotiff(out_dir / f"{stem}_pred_full.tif", res["prediction_full"], transform, crs, nodata=cfg.data.nodata)
+    write_geotiff(
+        out_dir / f"{stem}_comparison_mask.tif",
+        res["comparison_mask"].astype("float32"), transform, crs, nodata=cfg.data.nodata,
+    )
+
+    n_cmp = int(res["comparison_mask"].sum())
+    n_full = int(np.isfinite(res["prediction_full"]).sum())
+    print(f"comparable pixels: {n_cmp:,}   full prediction surface: {n_full:,}")
+    if n_full:
+        print(f"  ({n_full - n_cmp:,} predicted pixels have no valid test label; excluded from comparison)")
+
     error_overlay_map(
         res["actual"], res["residual"], out_dir / f"{stem}_error_map.png",
         title=f"{state} {year}: actual yield (background) + prediction error (overlay)",
     )
-    print(f"wrote {out_dir}/{stem}_{{pred,actual,residual}}.tif and _error_map.png")
+    print(f"wrote {out_dir}/{stem}_{{pred,actual,residual,pred_full,comparison_mask}}.tif and _error_map.png")
 
 
 if __name__ == "__main__":

@@ -40,3 +40,41 @@ def combine_masks(*masks: np.ndarray) -> np.ndarray:
 
 def valid_fraction(mask: np.ndarray) -> float:
     return float(mask.mean()) if mask.size else 0.0
+
+
+def min_valid_months(cfg_data) -> int:
+    """Minimum usable HLS months for a pixel to count, from a ``DataConfig``.
+
+    NOTE: this deliberately reproduces the *current* effective behaviour, which
+    is ``1`` -- ``dataset.py`` computed it as ``max_missing_months and 1 or 1``,
+    an expression that evaluates to the constant 1 for every possible input, so
+    the configured ``max_missing_months`` has never actually been applied. The
+    apparently intended threshold is ``n_timesteps - max_missing_months`` (5 for
+    the shipped config). Changing it would alter which pixels are valid for
+    TRAINING and for METRICS -- a scientific change, not a refactor -- so it is
+    left as-is here and called out rather than silently "fixed".
+    """
+    return 1
+
+
+def target_valid_mask(
+    crop_mask: np.ndarray,
+    label: np.ndarray,
+    month_valid: np.ndarray,
+    nodata: float,
+    n_valid_months: int,
+) -> np.ndarray:
+    """The single definition of "this pixel is a usable target": crop ∧ label ∧ HLS.
+
+    Both the training/metrics path (``FarmChipDataset.__getitem__``) and the
+    georeferenced map path (``evaluation.inference``) must gate on exactly this.
+    They previously built the mask independently, and the map path omitted the
+    label and HLS terms -- so the predicted raster covered ~13% more pixels than
+    the actual raster and the two maps were not visually comparable. Keep this as
+    the only place the three terms are combined.
+    """
+    return combine_masks(
+        crop_mask,
+        label_valid_mask(label, nodata),
+        hls_valid_mask_from_months(month_valid, n_valid_months),
+    )

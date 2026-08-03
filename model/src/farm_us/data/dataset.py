@@ -186,8 +186,11 @@ class FarmChipDataset(Dataset):
         img = apply_missing_month_policy(chip.image, chip.month_valid, self.cfg.data.missing_month_policy)
         img = normalize_image(img, self.norm.band_mean, self.norm.band_std)
 
-        hls_valid = M.hls_valid_mask_from_months(chip.month_valid, self.cfg.data.max_missing_months and 1 or 1)
+        n_months = M.min_valid_months(self.cfg.data)
+        hls_valid = M.hls_valid_mask_from_months(chip.month_valid, n_months)
         label_valid = M.label_valid_mask(chip.label, self.cfg.data.nodata)
+        # Equivalent to M.target_valid_mask(...); kept as separate components
+        # because augmentation flips each one individually below.
         mask = M.combine_masks(chip.crop_mask, label_valid, hls_valid)
 
         label_std = self.scaler.transform(np.nan_to_num(chip.label, nan=0.0))

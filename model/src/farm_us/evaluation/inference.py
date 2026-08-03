@@ -87,9 +87,24 @@ def predict_and_compare_test_year(
     windows outside that set have no real pixels and would silently predict
     from zero-filled input. Reusing the same manifest QC filter as training
     guarantees this map only shows chips the model actually saw real data for.
+
+    Returns two DIFFERENT prediction surfaces, deliberately kept apart:
+
+    ``prediction_full``  every crop pixel the model produced a value for. Useful
+                         in its own right (the model can predict where no test
+                         label exists) but NOT comparable to ``actual``.
+    ``prediction``       restricted to ``comparison_mask`` -- the same
+                         crop ∧ label ∧ HLS intersection the metrics use
+                         (masks.target_valid_mask). ``prediction``, ``actual``
+                         and ``residual`` all share this footprint exactly, so
+                         the maps are directly comparable pixel-for-pixel.
+
+    Conflating the two is what made the predicted map cover ~13% more pixels
+    than the actual map.
     """
     import pandas as pd
 
+    from ..data import masks as M
     from ..data.dataset import apply_missing_month_policy, filter_manifest_to_qualifying_chips
     from ..utils.geospatial import ChipWindow
 
@@ -97,14 +112,19 @@ def predict_and_compare_test_year(
     scaler = norm.target_scaler()
     h, w = reader.raster_size(state, year)
     chip = cfg.data.chip_size
+    n_months = M.min_valid_months(cfg.data)
 
     df = pd.read_parquet(cfg.data.manifest_path)
     df = df[(df["state"] == state) & (df["year"] == year)]
     df = filter_manifest_to_qualifying_chips(df, cfg)
 
-    prediction = np.full((h, w), np.nan, dtype=np.float32)
+    prediction_full = np.full((h, w), np.nan, dtype=np.float32)
     actual = np.full((h, w), np.nan, dtype=np.float32)
+    # Mask accumulators use |= : tile_windows clamps the final row/column to
+    # (raster_size - chip), so edge chips overlap. Plain assignment let a later
+    # chip's mask erase an earlier one's on those seams.
     crop_acc = np.zeros((h, w), dtype=bool)
+    comparison_mask = np.zeros((h, w), dtype=bool)
 
     for row in df.itertuples():
         win = ChipWindow(int(row.row_off), int(row.col_off), chip, chip)
@@ -125,14 +145,28 @@ def predict_and_compare_test_year(
         pred = scaler.inverse(out["main"][0, 0].float().cpu().numpy())
 
         rs, cs = win.as_slices()
-        prediction[rs, cs] = pred
+        prediction_full[rs, cs] = pred
         actual[rs, cs] = arr.label  # raster_readers already maps label nodata -> NaN
-        crop_acc[rs, cs] = arr.crop_mask
+        crop_acc[rs, cs] |= arr.crop_mask
+        comparison_mask[rs, cs] |= M.target_valid_mask(
+            arr.crop_mask, arr.label, arr.month_valid, cfg.data.nodata, n_months
+        )
 
-    prediction[~crop_acc] = np.nan
-    actual[~crop_acc] = np.nan
-    residual = prediction - actual  # NaN propagates correctly through subtraction
-    return {"prediction": prediction, "actual": actual, "residual": residual, "crop_mask": crop_acc}
+    prediction_full[~crop_acc] = np.nan
+    # A pixel is only comparable if the model actually produced a finite value there.
+    comparison_mask &= np.isfinite(prediction_full)
+
+    prediction = np.where(comparison_mask, prediction_full, np.nan).astype(np.float32)
+    actual = np.where(comparison_mask, actual, np.nan).astype(np.float32)
+    residual = prediction - actual
+    return {
+        "prediction": prediction,
+        "prediction_full": prediction_full,
+        "actual": actual,
+        "residual": residual,
+        "comparison_mask": comparison_mask,
+        "crop_mask": crop_acc,
+    }
 
 
 def write_geotiff(path: str | Path, array: np.ndarray, transform, crs, nodata: float = -9999.0) -> None:
