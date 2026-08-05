@@ -414,18 +414,29 @@ class FarmDataModule:
                 ds.norm = stats
                 ds.scaler = scaler
 
-    def _loader(self, ds, shuffle: bool):
+    def _loader(self, ds, shuffle: bool, drop_last: bool = False):
         from torch.utils.data import DataLoader
 
         return DataLoader(
             ds, batch_size=self.cfg.train.batch_size, shuffle=shuffle,
-            num_workers=self.cfg.train.num_workers, drop_last=False,
+            num_workers=self.cfg.train.num_workers, drop_last=drop_last,
         )
 
     def train_dataloader(self):
-        return self._loader(self.train_ds, True)
+        # drop_last=True is REQUIRED, not an optimisation. The PPM pools to a 1x1
+        # bin (cfg.model.ppm_bins starts at 1), so a trailing batch of one sample
+        # reaches BatchNorm as [1, C, 1, 1] and torch raises
+        # "Expected more than 1 value per channel when training".
+        # This bites whenever len(train_ds) % batch_size == 1 -- it took down a
+        # real run at step 1217/1217 of epoch 0 (2433 chips, batch_size 2) after
+        # ~2h of compute. Cost is at most batch_size-1 chips per epoch, and
+        # shuffle=True means a different chip is dropped each epoch.
+        return self._loader(self.train_ds, True, drop_last=True)
 
     def val_dataloader(self):
+        # NOT dropped: val/test run under model.eval(), where BatchNorm uses its
+        # running statistics and a batch of 1 is fine. Dropping here would
+        # silently discard samples from the reported metrics.
         return self._loader(self.val_ds, False)
 
     def test_dataloader(self):
