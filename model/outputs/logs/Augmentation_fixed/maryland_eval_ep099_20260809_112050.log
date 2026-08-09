@@ -1,0 +1,30 @@
+[11:21:11] INFO     manifest QC: 2951/19800 chips have qualifying imagery       
+           INFO     Loaded saved norm stats from                                
+                    outputs/runs/maryland_soybeans/test2024/norm_stats.json     
+                    (skipping recompute)                                        
+[11:21:25] INFO     Building TerraTorch backbone 'prithvi_eo_v2_600_tl'         
+                    (pretrained=True)                                           
+[11:21:31] INFO     HTTP Request: HEAD                                          
+                    https://huggingface.co/ibm-nasa-geospatial/Prithvi-EO-2.0-60
+                    0M-TL/resolve/main/Prithvi_EO_V2_600M_TL.pt "HTTP/1.1 302   
+                    Found"                                                      
+[11:21:32] INFO     Loaded weights for HLSBands.BLUE in position 0 of patch     
+                    embed                                                       
+           INFO     Loaded weights for HLSBands.GREEN in position 1 of patch    
+                    embed                                                       
+           INFO     Loaded weights for HLSBands.RED in position 2 of patch embed
+           INFO     Loaded weights for HLSBands.NIR_NARROW in position 3 of     
+                    patch embed                                                 
+           INFO     Loaded weights for HLSBands.SWIR_1 in position 4 of patch   
+                    embed                                                       
+           INFO     Loaded weights for HLSBands.SWIR_2 in position 5 of patch   
+                    embed                                                       
+[11:21:34] INFO     Evaluating on cuda                                          
+/home/cholab/LabMembers/Samar/EO-based-yield-prediction/model/.venv/lib/python3.11/site-packages/pandas/io/parquet.py:490: UserWarning: Could not serialize pd.DataFrame.attrs: Object of type ndarray is not JSON serializable, defaulting to empty attributes.
+  impl.write(
+[11:23:17] INFO     Eval (test year 2024, checkpoint farm-periodic-099): {'n':  
+                    1230484.0, 'mae': 2.406857490539551, 'rmse':                
+                    3.186924934387207, 'bias': 0.23468849062919617, 'r2':       
+                    0.4452084896321189, 'pearson_r': 0.6698795263632712,        
+                    'pearson_r2': 0.44873857984068055, 'pct_mae':               
+                    5.353398958954489}                                          

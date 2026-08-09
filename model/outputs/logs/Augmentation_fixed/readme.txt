@@ -1,0 +1,2 @@
+The augmentation error was solved and re ran the model
+the model training stopped at around 103 epoch but the model was already over fitting so we did not resolve and decided to test the model at this epoch numbers only
