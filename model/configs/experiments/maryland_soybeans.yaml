@@ -41,7 +41,7 @@ model:
   backbone_id: ibm-nasa-geospatial/Prithvi-EO-2.0-600M-TL
   use_time_embed: true
   use_location_embed: true
-  finetune_mode: full
+  finetune_mode: decoder_only
   out_blocks_one_based: [8, 16, 24, 32]
   aux_block_one_based: 24
   temporal_reducer: flatten_time
@@ -55,7 +55,7 @@ loss:
 
 train:
   seed: 0
-  epochs: 120
+  epochs: 60
   # batch_size=8 (paper default) OOMs on this 47.26 GiB GPU: real training hit
   # 46.3 GB and crashed. NOTE: the first profile-memory measurement here (26.6 GB
   # at batch=4) was wrong -- that tool omitted optimizer.step() entirely and so
@@ -68,12 +68,19 @@ train:
   # difference here -- it wraps the entire 32-block encoder as one checkpoint
   # unit rather than per-block, so it isn't actually saving activation memory
   # for this architecture; left off since it only adds recompute cost for free.
-  batch_size: 2
-  grad_accum: 4
+  # Full fine-tuning overfit 2,433 chips (really only 343 distinct locations)
+  # almost immediately -- best val RMSE landed at epoch 3 and 100 further epochs
+  # never beat it, while train/val loss diverged to 13x. Encoder is now frozen
+  # (model.finetune_mode: decoder_only, 825M -> 195M trainable), so the schedule
+  # is shortened to match and early stopping ends the run once val stops moving.
+  warmup_epochs: 3
+  early_stopping: true
+  early_stopping_patience: 15
+  batch_size: 8
+  grad_accum: 1
   lr: 5.0e-6
   min_lr: 1.0e-8
   weight_decay: 0.1
-  warmup_epochs: 20
   precision: bf16-mixed
   ckpt_monitor: val/main_rmse_phys
   ckpt_mode: min
