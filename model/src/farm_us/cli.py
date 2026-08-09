@@ -36,6 +36,7 @@ _ALIASES = {
     "year": "_ignore.year",
     "checkpoint": "_ignore.checkpoint",
     "resume_from": "_ignore.resume_from",
+    "min_valid": "_ignore.min_valid",
 }
 
 

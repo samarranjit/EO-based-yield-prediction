@@ -12,7 +12,12 @@ import numpy as np
 
 from ..config import FarmConfig, save_resolved_config
 from ..data.dataset import FarmDataModule
-from ..data.normalization import NormStats, official_prithvi_stats, target_scaler_from_values
+from ..data.normalization import (
+    NormStats,
+    find_norm_stats,
+    official_prithvi_stats,
+    target_scaler_from_values,
+)
 from ..data.splits import load_split_map, make_fold
 from ..utils.logging import get_logger
 from ..utils.reproducibility import seed_everything
@@ -101,9 +106,35 @@ def evaluate_fold(cfg: FarmConfig, checkpoint: str | None = None, use_dummy: boo
     from ..evaluation.evaluator import evaluate_loader, summarize
 
     fold = resolve_fold(cfg)
+    run_dir = Path(cfg.train.output_dir) / cfg.experiment_name / f"test{fold.test_year}"
+
     dm = FarmDataModule(cfg, synthetic=use_dummy, n_synth=8)
     dm.setup()
-    stats = compute_fold_stats(cfg, dm)
+
+    # Prefer the norm stats the TRAINING run saved. Recomputing them from the
+    # train split costs ~1h on real data and can only reproduce (approximately)
+    # what is already on disk -- and using the saved file is strictly more
+    # correct, since it is bit-identical to what the checkpoint was trained
+    # against. Falls back to recomputing when no saved stats exist.
+    #
+    # Resolution order matters: train_fold OVERWRITES run_dir/norm_stats.json on
+    # every launch, so after a second experiment writes into the same fold
+    # directory the run-root copy no longer describes an older checkpoint. A
+    # copy archived NEXT TO that checkpoint therefore wins -- find_norm_stats
+    # walks up from the checkpoint and returns the nearest match, which is also
+    # what map_test_errors.py / find_extreme_predictions.py use. Keeping the two
+    # consistent means "archive norm_stats.json beside the checkpoint" is a
+    # complete answer, not one that only some tools honour.
+    stats_path = find_norm_stats(checkpoint) if checkpoint else None
+    if stats_path is None and (run_dir / "norm_stats.json").exists():
+        stats_path = run_dir / "norm_stats.json"
+
+    if stats_path is not None:
+        stats = NormStats.load(stats_path)
+        logger.info("Loaded saved norm stats from %s (skipping recompute)", stats_path)
+    else:
+        logger.info("No saved norm stats found; recomputing from the train split")
+        stats = compute_fold_stats(cfg, dm)
     dm.apply_norm_stats(stats)
 
     if checkpoint:

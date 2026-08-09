@@ -46,7 +46,7 @@ def main(argv):
     import rasterio
     import torch
 
-    from farm_us.data.normalization import NormStats
+    from farm_us.data.normalization import NormStats, find_norm_stats
     from farm_us.data.raster_readers import build_reader
     from farm_us.evaluation.inference import predict_and_compare_test_year, write_geotiff
     from farm_us.evaluation.plots import error_overlay_map
@@ -55,12 +55,13 @@ def main(argv):
     device = "cuda" if torch.cuda.is_available() else "cpu"
     print(f"Running inference on {device}")
 
-    # norm_stats.json lives next to the checkpoint (train_fold saves it there), NOT
-    # at the generic cfg.norm.stats_path default -- that path is never actually written.
-    norm_path = Path(ckpt).parent.parent / "norm_stats.json"
-    if not norm_path.exists():
-        print(f"Could not find {norm_path} (expected next to the checkpoint's run directory).")
+    # train_fold writes norm_stats.json at the run root, but checkpoints are often
+    # filed into subdirectories -- search upward rather than assume a fixed depth.
+    norm_path = find_norm_stats(ckpt)
+    if norm_path is None:
+        print(f"Could not find norm_stats.json in any parent directory of {ckpt}")
         return
+    print(f"Using norm stats: {norm_path}")
     norm = NormStats.load(norm_path)
 
     reader = build_reader(cfg.data)

@@ -81,6 +81,23 @@ class NormStats:
         return TargetScaler.from_dict(self.target)
 
 
+def find_norm_stats(checkpoint_path: str | Path) -> Path | None:
+    """Locate the ``norm_stats.json`` belonging to a checkpoint.
+
+    Searches upward from the checkpoint rather than assuming a fixed depth:
+    ``train_fold`` writes the file at the run root, but checkpoints are often
+    filed into subdirectories (``checkpoints/``, and in practice further
+    subfolders per experiment variant), so a hard-coded ``parent.parent`` breaks
+    as soon as anyone reorganises them.
+    """
+    start = Path(checkpoint_path).resolve()
+    for directory in start.parents:
+        candidate = directory / "norm_stats.json"
+        if candidate.exists():
+            return candidate
+    return None
+
+
 def official_prithvi_stats(train_years: list[int], target_scaler: TargetScaler) -> NormStats:
     return NormStats(
         band_mean=list(PRITHVI_BAND_MEAN),

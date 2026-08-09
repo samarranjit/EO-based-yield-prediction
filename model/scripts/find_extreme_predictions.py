@@ -50,16 +50,16 @@ def main(argv):
     import torch
     from rasterio.features import rasterize
 
-    from farm_us.data.normalization import NormStats
+    from farm_us.data.normalization import NormStats, find_norm_stats
     from farm_us.data.raster_readers import build_reader
     from farm_us.evaluation.inference import predict_and_compare_test_year
     from farm_us.training.lightning_module import FarmLightningModule
     from farm_us.utils.geospatial import pixel_to_lonlat
 
     device = "cuda" if torch.cuda.is_available() else "cpu"
-    norm_path = Path(ckpt).parent.parent / "norm_stats.json"
-    if not norm_path.exists():
-        print(f"Missing {norm_path}")
+    norm_path = find_norm_stats(ckpt)
+    if norm_path is None:
+        print(f"Could not find norm_stats.json in any parent directory of {ckpt}")
         return
     norm = NormStats.load(norm_path)
     print(f"device={device}  norm_stats={norm_path}")

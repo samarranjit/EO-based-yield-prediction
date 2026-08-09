@@ -60,7 +60,7 @@ from sklearn.metrics import mean_absolute_error, r2_score
 # Root folder containing GEE county summary CSV files.
 # This can contain year subfolders; files are found recursively.
 VI_SUMMARY_DIR = Path(
-    "/home/cholab/LabMembers/Samar/EO-based-yield-prediction/data_preparation/data/Maryland/VI_summary"
+    "/home/cholab/LabMembers/Samar/EO-based-yield-prediction/data_preparation/data/year_state_VI_summary"
 )
 
 # Recursively match all CSVs inside VI_SUMMARY_DIR.
@@ -104,8 +104,8 @@ FORCE_NONNEGATIVE_WEIGHTS = False
 # Redistribution parameters saved for the second script.
 # These are not used during Ridge fitting, but they document the method.
 REDIST_STRENGTH = 0.15
-RAW_WEIGHT_MIN = 0.75
-RAW_WEIGHT_MAX = 1.25
+RAW_WEIGHT_MIN = 0.50
+RAW_WEIGHT_MAX = 1.50
 
 
 # ============================================================

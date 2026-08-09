@@ -102,8 +102,8 @@ OUTPUT_DIR.mkdir(parents=True, exist_ok=True)
 # Redistribution settings.
 # These should match the values saved by Script 1 unless you intentionally change them.
 REDIST_STRENGTH = 0.15
-RAW_WEIGHT_MIN = 0.75
-RAW_WEIGHT_MAX = 1.25
+RAW_WEIGHT_MIN = 0.50
+RAW_WEIGHT_MAX = 1.50
 
 # Minimum number of valid VI pixels required to redistribute a county.
 MIN_VALID_PIXELS_PER_COUNTY = 10
