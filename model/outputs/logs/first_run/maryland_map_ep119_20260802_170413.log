@@ -1,0 +1,23 @@
+Running inference on cuda
+[17:04:29] INFO     Building TerraTorch backbone 'prithvi_eo_v2_600_tl'         
+                    (pretrained=True)                                           
+[17:04:35] INFO     HTTP Request: HEAD                                          
+                    https://huggingface.co/ibm-nasa-geospatial/Prithvi-EO-2.0-60
+                    0M-TL/resolve/main/Prithvi_EO_V2_600M_TL.pt "HTTP/1.1 302   
+                    Found"                                                      
+Warning: You are sending unauthenticated requests to the HF Hub. Please set a HF_TOKEN to enable higher rate limits and faster downloads.
+           WARNING  Warning: You are sending unauthenticated requests to the HF 
+                    Hub. Please set a HF_TOKEN to enable higher rate limits and 
+                    faster downloads.                                           
+[17:04:37] INFO     Loaded weights for HLSBands.BLUE in position 0 of patch     
+                    embed                                                       
+           INFO     Loaded weights for HLSBands.GREEN in position 1 of patch    
+                    embed                                                       
+           INFO     Loaded weights for HLSBands.RED in position 2 of patch embed
+           INFO     Loaded weights for HLSBands.NIR_NARROW in position 3 of     
+                    patch embed                                                 
+           INFO     Loaded weights for HLSBands.SWIR_1 in position 4 of patch   
+                    embed                                                       
+           INFO     Loaded weights for HLSBands.SWIR_2 in position 5 of patch   
+                    embed                                                       
+wrote outputs/predictions/soybeans_MD_2024_{pred,actual,residual}.tif and _error_map.png

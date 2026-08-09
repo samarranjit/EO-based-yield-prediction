@@ -1,0 +1,1 @@
+This the log for the first run; check the model/outputs/runs/maryland_soybeans/test2024/checkpoints/first_run. The model stopped training at around 80 epochs so we had to resume the training to reach the destined 120 epochs

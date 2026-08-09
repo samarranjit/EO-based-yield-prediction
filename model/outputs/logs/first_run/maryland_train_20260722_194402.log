@@ -1,0 +1,88 @@
+warning: `VIRTUAL_ENV=/home/cholab/LabMembers/Samar/EO-based-yield-prediction/data_preparation/.venv` does not match the project environment path `.venv` and will be ignored; use `--active` to target the active environment instead
+[19:44:07] INFO     Fold: test=2024 val=[2023] train=[2014, 2015, 2016, 2017,   
+                    2018, 2019, 2020, 2021, 2022]                               
+[19:44:22] INFO     manifest QC: 2949/19800 chips have qualifying imagery       
+[20:39:07] INFO     Building TerraTorch backbone 'prithvi_eo_v2_600_tl'         
+                    (pretrained=True)                                           
+[20:39:13] INFO     HTTP Request: HEAD                                          
+                    https://huggingface.co/ibm-nasa-geospatial/Prithvi-EO-2.0-60
+                    0M-TL/resolve/main/Prithvi_EO_V2_600M_TL.pt "HTTP/1.1 302   
+                    Found"                                                      
+[20:39:15] INFO     Loaded weights for HLSBands.BLUE in position 0 of patch     
+                    embed                                                       
+           INFO     Loaded weights for HLSBands.GREEN in position 1 of patch    
+                    embed                                                       
+           INFO     Loaded weights for HLSBands.RED in position 2 of patch embed
+           INFO     Loaded weights for HLSBands.NIR_NARROW in position 3 of     
+                    patch embed                                                 
+           INFO     Loaded weights for HLSBands.SWIR_1 in position 4 of patch   
+                    embed                                                       
+           INFO     Loaded weights for HLSBands.SWIR_2 in position 5 of patch   
+                    embed                                                       
+INFO: Using bfloat16 Automatic Mixed Precision (AMP)
+[20:39:16] INFO     Using bfloat16 Automatic Mixed Precision (AMP)              
+INFO: GPU available: True (cuda), used: True
+           INFO     GPU available: True (cuda), used: True                      
+INFO: TPU available: False, using: 0 TPU cores
+           INFO     TPU available: False, using: 0 TPU cores                    
+INFO: 💡 Tip: For seamless cloud logging and experiment tracking, try installing [litlogger](https://pypi.org/project/litlogger/) to enable LitLogger, which logs metrics and artifacts automatically to the Lightning Experiments platform.
+           INFO     💡 Tip: For seamless cloud logging and experiment tracking, 
+                    try installing                                              
+                    [litlogger](https://pypi.org/project/litlogger/) to enable  
+                    LitLogger, which logs metrics and artifacts automatically to
+                    the Lightning Experiments platform.                         
+INFO: `Trainer(limit_train_batches=1.0)` was configured so 100% of the batches per epoch will be used..
+           INFO     `Trainer(limit_train_batches=1.0)` was configured so 100% of
+                    the batches per epoch will be used..                        
+INFO: `Trainer(limit_val_batches=1.0)` was configured so 100% of the batches will be used..
+           INFO     `Trainer(limit_val_batches=1.0)` was configured so 100% of  
+                    the batches will be used..                                  
+/home/cholab/LabMembers/Samar/EO-based-yield-prediction/model/.venv/lib/python3.11/site-packages/lightning/pytorch/callbacks/model_checkpoint.py:881: Checkpoint directory /home/cholab/LabMembers/Samar/EO-based-yield-prediction/model/outputs/runs/maryland_soybeans/test2024/checkpoints exists and is not empty.
+INFO: LOCAL_RANK: 0 - CUDA_VISIBLE_DEVICES: [0]
+           INFO     LOCAL_RANK: 0 - CUDA_VISIBLE_DEVICES: [0]                   
+/home/cholab/LabMembers/Samar/EO-based-yield-prediction/model/.venv/lib/python3.11/site-packages/lightning/pytorch/utilities/model_summary/model_summary.py:242: Precision bf16-mixed is not supported by the model summary.  Estimated model size in MB will not be accurate. Using 32 bits instead.
+┏━━━┳━━━━━━━┳━━━━━━━━━━━┳━━━━━━━━┳━━━━━━━┳━━━━━━━┓
+┃   ┃ Name  ┃ Type      ┃ Params ┃ Mode  ┃ FLOPs ┃
+┡━━━╇━━━━━━━╇━━━━━━━━━━━╇━━━━━━━━╇━━━━━━━╇━━━━━━━┩
+│ 0 │ model │ FarmModel │  825 M │ train │     0 │
+└───┴───────┴───────────┴────────┴───────┴───────┘
+Trainable params: 825 M                                                         
+Non-trainable params: 0                                                         
+Total params: 825 M                                                             
+Total estimated model params size (MB): 3,303.789                               
+Modules in train mode: 826                                                      
+Modules in eval mode: 0                                                         
+Total FLOPs: 0                                                                  
+/home/cholab/LabMembers/Samar/EO-based-yield-prediction/model/.venv/lib/python3.11/site-packages/lightning/pytorch/utilities/_pytree.py:21: `isinstance(treespec, LeafSpec)` is deprecated, use `isinstance(treespec, TreeSpec) and treespec.is_leaf()` instead.
+Exception in thread Thread-2:
+Epoch 75/119 ━━━━━━━━━━      816/1216 0:49:19 •       0.28it/s v_num: 3         
+                                      0:24:10                  train/loss: 0.255
+                                                               val/loss: 0.087  Traceback (most recent call last):
+
+  File "/home/cholab/LabMembers/Samar/EO-based-yield-prediction/model/.venv/lib/python3.11/site-packages/lightning/pytorch/trainer/call.py", line 49, in _call_and_handle_interrupt
+    return trainer_fn(*args, **kwargs)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/cholab/LabMembers/Samar/EO-based-yield-prediction/model/.venv/lib/python3.11/site-packages/lightning/pytorch/trainer/trainer.py", line 630, in _fit_impl
+    self._run(model, ckpt_path=ckpt_path, weights_only=weights_only)
+  File "/home/cholab/LabMembers/Samar/EO-based-yield-prediction/model/.venv/lib/python3.11/site-packages/lightning/pytorch/trainer/trainer.py", line 1079, in _run
+    results = self._run_stage()
+              ^^^^^^^^^^^^^^^^^
+  File "/home/cholab/LabMembers/Samar/EO-based-yield-prediction/model/.venv/lib/python3.11/site-packages/lightning/pytorch/trainer/trainer.py", line 1123, in _run_stage
+    self.fit_loop.run()
+Traceback (most recent call last):
+  File "/home/cholab/LabMembers/Samar/EO-based-yield-prediction/model/.venv/lib/python3.11/site-packages/lightning/pytorch/loops/fit_loop.py", line 217, in run
+  File "<frozen runpy>", line 198, in _run_module_as_main
+  File "<frozen runpy>", line 88, in _run_code
+  File "/home/cholab/LabMembers/Samar/EO-based-yield-prediction/model/src/farm_us/cli.py", line 279, in <module>
+    main()
+    self.advance()
+  File "/home/cholab/LabMembers/Samar/EO-based-yield-prediction/model/src/farm_us/cli.py", line 275, in main
+  File "/home/cholab/LabMembers/Samar/EO-based-yield-prediction/model/.venv/lib/python3.11/site-packages/lightning/pytorch/loops/fit_loop.py", line 469, in advance
+    COMMANDS[args.command](args)
+  File "/home/cholab/LabMembers/Samar/EO-based-yield-prediction/model/src/farm_us/cli.py", line 216, in cmd_train
+    train_fold(_cfg(args), use_dummy="--real" not in sys.argv)
+  File "/home/cholab/LabMembers/Samar/EO-based-yield-prediction/model/src/farm_us/training/run.py", line 93, in train_fold
+    self.epoch_loop.run(self._data_fetcher)
+    trainer.fit(lm, dm.train_dataloader(), dm.val_dataloader())
+  File "/home/cholab/LabMembers/Samar/EO-based-yield-prediction/model/.venv/lib/python3.11/site-packages/lightning/pytorch/loops/training_epoch_loop.py", line 153, in run
+  File "/home/cholab/LabMembers/Samar/EO-based-yield-prediction/model/.venv
