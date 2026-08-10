@@ -97,7 +97,7 @@ def train_fold(cfg: FarmConfig, use_dummy: bool = True, dummy_embed_dim: int = 3
     if isinstance(trainer, L.Trainer):
         if resume_from:
             logger.info("Resuming from checkpoint: %s", resume_from)
-        trainer.fit(lm, dm.train_dataloader(), dm.val_dataloader(), ckpt_path=resume_from)
+        trainer.fit(lm, dm.train_dataloader(), dm.val_dataloader(), ckpt_path=resume_from) # This is the most important line in this function, it runs the training loop using the Lightning trainer, model, and data module.
         logger.info("Best checkpoint: %s", getattr(trainer.checkpoint_callback, "best_model_path", None))
     return lm, dm, stats, out_dir
 
