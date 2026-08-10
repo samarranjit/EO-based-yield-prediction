@@ -1,0 +1,31 @@
+[11:23:33] INFO     manifest QC: 2951/19800 chips have qualifying imagery       
+           INFO     Loaded saved norm stats from                                
+                    /home/cholab/LabMembers/Samar/EO-based-yield-prediction/mode
+                    l/outputs/runs/maryland_soybeans/test2024/checkpoints/Decode
+                    r_Only/norm_stats.json (skipping recompute)                 
+[11:23:39] INFO     Building TerraTorch backbone 'prithvi_eo_v2_600_tl'         
+                    (pretrained=True)                                           
+[11:23:45] INFO     HTTP Request: HEAD                                          
+                    https://huggingface.co/ibm-nasa-geospatial/Prithvi-EO-2.0-60
+                    0M-TL/resolve/main/Prithvi_EO_V2_600M_TL.pt "HTTP/1.1 302   
+                    Found"                                                      
+[11:23:46] INFO     Loaded weights for HLSBands.BLUE in position 0 of patch     
+                    embed                                                       
+           INFO     Loaded weights for HLSBands.GREEN in position 1 of patch    
+                    embed                                                       
+           INFO     Loaded weights for HLSBands.RED in position 2 of patch embed
+           INFO     Loaded weights for HLSBands.NIR_NARROW in position 3 of     
+                    patch embed                                                 
+           INFO     Loaded weights for HLSBands.SWIR_1 in position 4 of patch   
+                    embed                                                       
+           INFO     Loaded weights for HLSBands.SWIR_2 in position 5 of patch   
+                    embed                                                       
+[11:23:49] INFO     Evaluating on cuda                                          
+/home/cholab/LabMembers/Samar/EO-based-yield-prediction/model/.venv/lib/python3.11/site-packages/pandas/io/parquet.py:490: UserWarning: Could not serialize pd.DataFrame.attrs: Object of type ndarray is not JSON serializable, defaulting to empty attributes.
+  impl.write(
+[11:25:59] INFO     Eval (test year 2023, checkpoint farm-periodic-029): {'n':  
+                    1363453.0, 'mae': 4.43782377243042, 'rmse':                 
+                    5.661847114562988, 'bias': 0.15862061083316803, 'r2':       
+                    0.46376670771271067, 'pearson_r': 0.6817371315529337,       
+                    'pearson_r2': 0.464765516538022, 'pct_mae':                 
+                    9.529036333238672}                                          

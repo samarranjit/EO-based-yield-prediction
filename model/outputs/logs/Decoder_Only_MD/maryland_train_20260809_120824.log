@@ -1,0 +1,66 @@
+[12:08:29] INFO     Fold: test=2024 val=[2023] train=[2014, 2015, 2016, 2017,   
+                    2018, 2019, 2020, 2021, 2022]                               
+[12:08:45] INFO     manifest QC: 2951/19800 chips have qualifying imagery       
+[13:10:16] INFO     Building TerraTorch backbone 'prithvi_eo_v2_600_tl'         
+                    (pretrained=True)                                           
+[13:10:22] INFO     HTTP Request: HEAD                                          
+                    https://huggingface.co/ibm-nasa-geospatial/Prithvi-EO-2.0-60
+                    0M-TL/resolve/main/Prithvi_EO_V2_600M_TL.pt "HTTP/1.1 302   
+                    Found"                                                      
+Warning: You are sending unauthenticated requests to the HF Hub. Please set a HF_TOKEN to enable higher rate limits and faster downloads.
+           WARNING  Warning: You are sending unauthenticated requests to the HF 
+                    Hub. Please set a HF_TOKEN to enable higher rate limits and 
+                    faster downloads.                                           
+[13:10:24] INFO     Loaded weights for HLSBands.BLUE in position 0 of patch     
+                    embed                                                       
+           INFO     Loaded weights for HLSBands.GREEN in position 1 of patch    
+                    embed                                                       
+           INFO     Loaded weights for HLSBands.RED in position 2 of patch embed
+           INFO     Loaded weights for HLSBands.NIR_NARROW in position 3 of     
+                    patch embed                                                 
+           INFO     Loaded weights for HLSBands.SWIR_1 in position 4 of patch   
+                    embed                                                       
+           INFO     Loaded weights for HLSBands.SWIR_2 in position 5 of patch   
+                    embed                                                       
+INFO: Using bfloat16 Automatic Mixed Precision (AMP)
+[13:10:25] INFO     Using bfloat16 Automatic Mixed Precision (AMP)              
+INFO: GPU available: True (cuda), used: True
+           INFO     GPU available: True (cuda), used: True                      
+INFO: TPU available: False, using: 0 TPU cores
+           INFO     TPU available: False, using: 0 TPU cores                    
+INFO: 💡 Tip: For seamless cloud logging and experiment tracking, try installing [litlogger](https://pypi.org/project/litlogger/) to enable LitLogger, which logs metrics and artifacts automatically to the Lightning Experiments platform.
+           INFO     💡 Tip: For seamless cloud logging and experiment tracking, 
+                    try installing                                              
+                    [litlogger](https://pypi.org/project/litlogger/) to enable  
+                    LitLogger, which logs metrics and artifacts automatically to
+                    the Lightning Experiments platform.                         
+INFO: `Trainer(limit_train_batches=1.0)` was configured so 100% of the batches per epoch will be used..
+           INFO     `Trainer(limit_train_batches=1.0)` was configured so 100% of
+                    the batches per epoch will be used..                        
+INFO: `Trainer(limit_val_batches=1.0)` was configured so 100% of the batches will be used..
+           INFO     `Trainer(limit_val_batches=1.0)` was configured so 100% of  
+                    the batches will be used..                                  
+/home/cholab/LabMembers/Samar/EO-based-yield-prediction/model/.venv/lib/python3.11/site-packages/lightning/pytorch/callbacks/model_checkpoint.py:881: Checkpoint directory /home/cholab/LabMembers/Samar/EO-based-yield-prediction/model/outputs/runs/maryland_soybeans/test2024/checkpoints exists and is not empty.
+INFO: LOCAL_RANK: 0 - CUDA_VISIBLE_DEVICES: [0]
+           INFO     LOCAL_RANK: 0 - CUDA_VISIBLE_DEVICES: [0]                   
+/home/cholab/LabMembers/Samar/EO-based-yield-prediction/model/.venv/lib/python3.11/site-packages/lightning/pytorch/utilities/model_summary/model_summary.py:242: Precision bf16-mixed is not supported by the model summary.  Estimated model size in MB will not be accurate. Using 32 bits instead.
+┏━━━┳━━━━━━━┳━━━━━━━━━━━┳━━━━━━━━┳━━━━━━━┳━━━━━━━┓
+┃   ┃ Name  ┃ Type      ┃ Params ┃ Mode  ┃ FLOPs ┃
+┡━━━╇━━━━━━━╇━━━━━━━━━━━╇━━━━━━━━╇━━━━━━━╇━━━━━━━┩
+│ 0 │ model │ FarmModel │  825 M │ train │     0 │
+└───┴───────┴───────────┴────────┴───────┴───────┘
+Trainable params: 194 M                                                         
+Non-trainable params: 631 M                                                     
+Total params: 825 M                                                             
+Total estimated model params size (MB): 3,303.789                               
+Modules in train mode: 826                                                      
+Modules in eval mode: 0                                                         
+Total FLOPs: 0                                                                  
+/home/cholab/LabMembers/Samar/EO-based-yield-prediction/model/.venv/lib/python3.11/site-packages/lightning/pytorch/utilities/_pytree.py:21: `isinstance(treespec, LeafSpec)` is deprecated, use `isinstance(treespec, TreeSpec) and treespec.is_leaf()` instead.
+Epoch 34/59 ━━━━━━━━━━━━━━━━ 304/304 0:27:30 •        0.19it/s v_num: 6         
+                                     0:00:00                   train/loss: 0.104
+                                                               val/loss: 0.782  
+[07:08:16] INFO     Best checkpoint:                                            
+                    /home/cholab/LabMembers/Samar/EO-based-yield-prediction/mode
+                    l/outputs/runs/maryland_soybeans/test2024/checkpoints/farm-0
+                    19-0.0000.ckpt                                              
