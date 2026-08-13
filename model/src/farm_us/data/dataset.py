@@ -321,7 +321,31 @@ def filter_manifest_to_qualifying_chips(df, cfg: FarmConfig):
             (int(r.row_off), int(r.col_off)) in qualifying for r in rows
         ]
 
-    return df[keep]
+    out = df[keep]
+
+    # Drop chips with physically unreadable imagery (see DataConfig.exclude_sample_ids).
+    # Logged at WARNING, and every requested id is accounted for: an id that
+    # matches nothing usually means a typo or a stale scan report, and silently
+    # ignoring it would leave a corrupt chip in the run while the config claims
+    # otherwise.
+    excluded = list(getattr(cfg.data, "exclude_sample_ids", []) or [])
+    if excluded:
+        present = set(out["sample_id"])
+        hit = [s for s in excluded if s in present]
+        missing = [s for s in excluded if s not in present]
+        if hit:
+            out = out[~out["sample_id"].isin(hit)]
+            logger.warning(
+                "Excluded %d chip(s) via data.exclude_sample_ids: %s",
+                len(hit), ", ".join(sorted(hit)),
+            )
+        if missing:
+            logger.warning(
+                "data.exclude_sample_ids lists %d id(s) not present in the "
+                "qualifying manifest (already filtered, or a typo): %s",
+                len(missing), ", ".join(sorted(missing)),
+            )
+    return out
 
 
 # --------------------------------------------------------------------------- #

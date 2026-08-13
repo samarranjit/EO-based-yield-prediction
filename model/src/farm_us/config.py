@@ -109,6 +109,22 @@ class DataConfig:
 
     exclude_geoids: list[str] = field(default_factory=lambda: ["24033"])  # BARC / PG County MD
 
+    #: Manifest ``sample_id``s to drop before training/evaluation.
+    #:
+    #: Intended for chips whose imagery is physically unreadable -- a truncated
+    #: DEFLATE tile raises only when decoded, inside a DataLoader worker, which
+    #: kills the entire run hours in. Such chips cannot be used by any run, so
+    #: excluding them is a statement of fact about the data, not a modelling
+    #: choice, and it applies identically to train, val and test.
+    #:
+    #: Find them with ``scripts/scan_hls_corruption.py``. Keep this list SMALL
+    #: and justified: it is silent data removal, so every entry should trace to
+    #: a scan report. It is written into each run's resolved_config.yaml, so the
+    #: exclusion stays on the record rather than living only in someone's shell
+    #: history. Excluding chips for any reason other than unreadable data would
+    #: be selection bias -- do not use this to drop inconvenient samples.
+    exclude_sample_ids: list[str] = field(default_factory=list)
+
 
 @dataclass
 class NormConfig:
@@ -213,7 +229,7 @@ class AugmentConfig:
 class TrainConfig:
     seed: int = 0
     epochs: int = 120
-    batch_size: int = 8
+    batch_size: int = 24
     grad_accum: int = 1
     optimizer: str = "adamw"
     lr: float = 5e-6
@@ -223,7 +239,7 @@ class TrainConfig:
     scheduler: str = "cosine"
     precision: str = "bf16-mixed"
     grad_clip: float | None = None
-    num_workers: int = 4
+    num_workers: int = 32
     # single | ddp | fsdp
     strategy: str = "single"
     devices: int = 1

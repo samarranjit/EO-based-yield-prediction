@@ -51,6 +51,38 @@ def evaluate_loader(model, loader, scaler: TargetScaler, device: str = "cpu") ->
     return df
 
 
+def write_global_pixel_metrics(metrics: dict, out_dir: str | Path) -> Path:
+    """Write the pixel-level headline metrics to ``metrics_global_pixel.json``.
+
+    Kept separate from :func:`summarize` so ``scripts/replot_eval.py`` can
+    backfill the file for evaluations that predate it, straight from
+    ``eval_pixels.npz`` and without re-running the model.
+
+    ``unit: pixel`` is written explicitly: metrics_by_state.csv reports an ``n``
+    counting CHIPS, and reading a chip-level correlation as a pixel-level one is
+    an easy and consequential mistake -- a 3-chip fold can show pearson_r2=0.41
+    while the pixel-level value is 0.05.
+    """
+    import json
+
+    out_dir = Path(out_dir)
+    out_dir.mkdir(parents=True, exist_ok=True)
+    payload = {
+        "unit": "pixel",
+        "note": (
+            "n counts valid PIXELS. metrics_by_state.csv / metrics_by_year.csv "
+            "aggregate chip means and their n counts CHIPS. pearson_r2 allows a "
+            "refitted intercept and slope; r2 is against the 1:1 line and is the "
+            "one that reflects predictive accuracy."
+        ),
+        **{k: (float(v) if isinstance(v, (int, float, np.floating)) else v)
+           for k, v in metrics.items()},
+    }
+    path = out_dir / "metrics_global_pixel.json"
+    path.write_text(json.dumps(payload, indent=2))
+    return path
+
+
 def summarize(df: pd.DataFrame, out_dir: str | Path) -> dict:
     out_dir = Path(out_dir)
     out_dir.mkdir(parents=True, exist_ok=True)
@@ -59,6 +91,13 @@ def summarize(df: pd.DataFrame, out_dir: str | Path) -> dict:
     if "pixels" in df.attrs:
         p, t = df.attrs["pixels"]
         result["global_pixel"] = global_pixel_metrics(p, t, np.ones_like(p))
+        # Persist the headline numbers, not just the arrays they came from.
+        # These are the metrics reported for a run, and until now they existed
+        # only in the returned dict (which the CLI drops) and stdout -- so an
+        # eval run without a redirected log left no record of its own result.
+        # `n` is the PIXEL count; metrics_by_state.csv carries a different `n`
+        # (chips), and the two have been confused, so the unit is named here.
+        write_global_pixel_metrics(result["global_pixel"], out_dir)
         # Persist the raw valid-pixel arrays. They are the ONLY input the three
         # plots below need, and without them a re-plot (different alpha, extra
         # chart type) costs a full re-evaluation -- for the real model that is
