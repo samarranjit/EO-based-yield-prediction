@@ -68,6 +68,17 @@ class NormStats:
     mode: str
     train_years: list[int]
 
+    # Provenance of the statistics pass. These MUST keep defaults: `load` does
+    # `cls(**json.loads(...))`, so any field without one would fail to read
+    # every norm_stats.json written before they existed -- including the ones
+    # sitting beside already-trained checkpoints.
+    #: Chips actually read. None means "not recorded" (a pre-existing file).
+    n_chips_used: int | None = None
+    #: Chips available in the train split. Equal to n_chips_used for a full pass.
+    n_chips_total: int | None = None
+    #: Seed for the subsample draw; None when no subsampling occurred.
+    stats_seed: int | None = None
+
     def save(self, path: str | Path) -> None:
         path = Path(path)
         path.parent.mkdir(parents=True, exist_ok=True)
