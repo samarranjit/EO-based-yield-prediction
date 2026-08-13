@@ -118,6 +118,45 @@ class NormConfig:
     target_scaling: str = "zscore"
     stats_path: str = "outputs/stats/norm_stats.json"
 
+    #: Cap on how many TRAIN chips the normalization pass reads. ``None`` (the
+    #: default) reads every one, which is the historical behaviour and stays
+    #: bit-for-bit unchanged -- set this only to opt in.
+    #:
+    #: The pass is single-threaded and NOT resumable, so on large folds it
+    #: dominates wall-clock: the 4-state Corn Belt fold reads ~32k chips at
+    #: ~2.1 s/chip = ~19 h before training starts, and a crash loses all of it.
+    #: It exists only to estimate 6 band means/stds and a target scaler, which
+    #: converge on a few million pixels; each chip contributes up to 50,176 per
+    #: band, so ~2,000 chips is ~100M pixels per band -- far past convergence.
+    #:
+    #: Sampling is uniform WITHOUT replacement over the train split only (never
+    #: val/test), seeded by ``stats_seed``, and the drawn indices are sorted so
+    #: reads stay roughly sequential on disk. The chosen size and seed are
+    #: recorded in norm_stats.json so a subsampled run stays reproducible.
+    stats_max_chips: int | None = None
+    stats_seed: int = 0
+
+    #: Path to an existing ``norm_stats.json`` to LOAD instead of recomputing.
+    #:
+    #: The statistics pass is deterministic given (train split, seed, cap), so
+    #: re-running it after a crash, a precision change, or any other edit that
+    #: does not touch the data recomputes an answer already on disk -- ~60 min
+    #: for the 4-state fold, ~19 h unsubsampled. ``evaluate_fold`` has always
+    #: preferred the saved file for this reason; this gives ``train_fold`` the
+    #: same option.
+    #:
+    #: LEAKAGE GUARD: ``train_fold`` refuses to load a file whose recorded
+    #: ``train_years`` differ from the fold being trained. Statistics carry the
+    #: fingerprint of the years they were computed on, so silently accepting a
+    #: mismatched file could normalise using the test year -- the exact thing
+    #: LOYO_PROTOCOL.md forbids. Reuse across a precision/batch/lr change is
+    #: safe; reuse across a change of states, years, or test_year is not, and
+    #: is rejected.
+    #:
+    #: Left None by default: reuse must be a deliberate act, or a stale file
+    #: would quietly outlive the data it describes.
+    reuse_stats_from: str | None = None
+
 
 @dataclass
 class SplitConfig:
