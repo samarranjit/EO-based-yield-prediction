@@ -1,0 +1,2 @@
+The decoder only checkpoint that was obtained by training MD 2014-2024 dataset, tested on the BARC ground observed dataset
+Results in: /home/cholab/LabMembers/Samar/EO-based-yield-prediction/model/outputs/runs/barc_transfer
