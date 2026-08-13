@@ -30,8 +30,11 @@ def main() -> None:
     ap = argparse.ArgumentParser(description="Re-render eval plots from saved pixel arrays.")
     ap.add_argument("--eval-dir", type=Path, required=True, help="Directory containing eval_pixels.npz")
     ap.add_argument("--out-dir", type=Path, default=None, help="Where to write PNGs (default: --eval-dir, overwrites)")
-    ap.add_argument("--alpha", type=float, default=0.02, help="Scatter point opacity (lower = more density detail)")
-    ap.add_argument("--point-size", type=float, default=2, help="Scatter marker size")
+    ap.add_argument("--alpha", type=float, default=None,
+                    help="Scatter point opacity (lower = more density detail). "
+                         "Default: chosen from the point count.")
+    ap.add_argument("--point-size", type=float, default=None,
+                    help="Scatter marker size. Default: chosen from the point count.")
     ap.add_argument("--title", default="Predicted vs Observed")
     args = ap.parse_args()
 
@@ -49,6 +52,12 @@ def main() -> None:
     out_dir.mkdir(parents=True, exist_ok=True)
 
     m = global_pixel_metrics(p, t, np.ones_like(p))
+    # Backfill metrics_global_pixel.json for evaluations written before summarize
+    # started saving it. Recomputed from the same arrays the original run used,
+    # so the numbers are identical to what that run printed.
+    from farm_us.evaluation.evaluator import write_global_pixel_metrics
+
+    write_global_pixel_metrics(m, out_dir)
     print(f"{p.size:,} pixels loaded from {npz_path}")
     print(
         f"  mae={m['mae']:.4f}  rmse={m['rmse']:.4f}  bias={m['bias']:.4f}  "

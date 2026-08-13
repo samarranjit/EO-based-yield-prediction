@@ -34,10 +34,22 @@ PRITHVI_BAND_MEAN: tuple[float, ...] = (1087.0, 1342.0, 1433.0, 2734.0, 1958.0, 
 PRITHVI_BAND_STD: tuple[float, ...] = (2248.0, 2179.0, 2178.0, 1850.0, 1242.0, 1049.0)
 
 #: 17 initial study states → FIPS (from data_preparation/config.py).
+#:
+#: "BARC" is a pseudo-state, not a state: the USDA Beltsville Agricultural
+#: Research Center transfer set, which is physically inside Prince George's
+#: County, Maryland, hence FIPS 24. It is mapped here because
+#: dataset.filter_manifest_to_qualifying_chips does
+#: ``STATE_FIPS.get(state)`` and treats a None result as "no qualifying chips",
+#: which would silently drop every BARC chip and evaluate on an empty test set
+#: rather than raise. Giving it Maryland's FIPS makes the county-boundary
+#: rasterization resolve to the MD polygons that genuinely contain BARC.
+#: Inert for every other experiment -- no config lists BARC in data.states
+#: except configs/experiments/barc_transfer.yaml.
 STATE_FIPS: dict[str, str] = {
     "IL": "17", "IA": "19", "IN": "18", "MN": "27", "NE": "31", "MO": "29",
     "OH": "39", "SD": "46", "ND": "38", "KS": "20", "WI": "55", "MI": "26",
     "MD": "24", "DE": "10", "VA": "51", "NC": "37", "PA": "42",
+    "BARC": "24",
 }
 
 #: CDL crop codes.

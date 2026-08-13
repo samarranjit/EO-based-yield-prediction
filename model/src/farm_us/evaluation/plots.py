@@ -16,33 +16,58 @@ def _ax():
     return plt
 
 
+def auto_scatter_style(n: int) -> tuple[float, float]:
+    """Pick (alpha, point_size) from the number of points being drawn.
+
+    A fixed alpha cannot serve both regimes this project produces. A state-year
+    test set is ~1e6 pixels, where alpha=0.3 saturates after ~3 overlaps and the
+    dense core becomes a flat silhouette; a BARC transfer set is ~2e3 pixels,
+    where that same 0.02 renders as a blank plot -- which is exactly what
+    happened and cost real time to diagnose, because an empty-looking figure is
+    indistinguishable from a broken pipeline.
+
+    Scale inversely with n so ~50 overlaps still saturate, then clamp: the 0.02
+    floor preserves the previous appearance for large runs, and the 0.6 ceiling
+    keeps small-n plots legible without going fully opaque.
+    """
+    if n <= 0:
+        return 0.6, 6.0
+    alpha = float(np.clip(2000.0 / n, 0.02, 0.6))
+    size = float(np.clip(20000.0 / n, 2.0, 8.0))
+    return alpha, size
+
+
 def scatter_obs_pred(
     pred,
     target,
     out_path: str | Path,
     title: str = "Predicted vs Observed",
-    alpha: float = 0.02,
-    point_size: float = 2,
+    alpha: float | None = None,
+    point_size: float | None = None,
 ) -> None:
     """One dot per valid pixel, with a 1:1 reference line.
 
-    ``alpha`` is deliberately very low: a full test year is ~1e6 pixels, and at
-    alpha=0.3 roughly 3 overlapping points already render fully opaque, so the
-    dense core becomes a flat silhouette that hides how the mass is distributed.
-    At alpha=0.02 it takes ~50 overlaps to saturate, so relative density stays
-    readable. Tune per dataset size: fewer points -> raise it (0.1-0.3), more
-    points -> lower it. Note alpha-blending still saturates in the very densest
-    region; use a hexbin/2-D histogram if you need density read off a colorbar.
+    ``alpha``/``point_size`` default to None = choose from the point count via
+    :func:`auto_scatter_style`. Pass explicit values to override. Note that
+    alpha-blending still saturates in the very densest region; use a hexbin or
+    2-D histogram if you need density read off a colorbar.
+
+    The point count is put in the title because a sparse scatter and a failed
+    run look identical otherwise -- with n on the figure, "is this empty?" is
+    answerable from the image alone.
     """
     plt = _ax()
     p, t = np.asarray(pred).ravel(), np.asarray(target).ravel()
     m = np.isfinite(p) & np.isfinite(t)
     p, t = p[m], t[m]
+    auto_alpha, auto_size = auto_scatter_style(p.size)
     fig, ax = plt.subplots(figsize=(5, 5))
-    ax.scatter(t, p, s=point_size, alpha=alpha, linewidths=0)
+    ax.scatter(t, p, s=point_size if point_size is not None else auto_size,
+               alpha=alpha if alpha is not None else auto_alpha, linewidths=0)
     lim = [min(t.min(), p.min()), max(t.max(), p.max())] if p.size else [0, 1]
     ax.plot(lim, lim, "g-", lw=1)
-    ax.set_xlabel("Observed"); ax.set_ylabel("Predicted"); ax.set_title(title)
+    ax.set_xlabel("Observed"); ax.set_ylabel("Predicted")
+    ax.set_title(f"{title}  (n={p.size:,})")
     _save(fig, out_path)
 
 

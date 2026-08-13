@@ -71,7 +71,7 @@ def main(argv):
     with rasterio.open(reader._label_path(state, year)) as ds:
         transform, crs = ds.transform, ds.crs
 
-    out_dir = Path("outputs/predictions")
+    out_dir = Path("outputs/predictions/decoder_only")
     stem = f"{cfg.data.crop.lower()}_{state}_{year}"
 
     # _pred / _actual / _residual share ONE footprint (comparison_mask) so the

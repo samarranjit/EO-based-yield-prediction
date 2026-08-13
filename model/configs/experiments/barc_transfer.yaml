@@ -1,0 +1,110 @@
+# BARC transfer evaluation: measured 30 m soybean yield at the USDA Beltsville
+# Agricultural Research Center, used as an external test set for a checkpoint
+# trained on ridge-distributed county pseudo-labels.
+#
+# READ BEFORE INTERPRETING ANY RESULT FROM THIS CONFIG
+# ----------------------------------------------------
+# 1. NOT an independent test against the Maryland checkpoints. data.exclude_geoids
+#    lists "24033" (Prince George's County, which contains BARC) but it is DEAD
+#    CODE -- nothing in the pipeline reads it, and ~50,882 PG County pixels were
+#    in the Maryland training set. The model has already seen this ground, with
+#    county pseudo-labels. Only the LABELS here are new (measured vs ridge-
+#    distributed). Treat this as "does the model's yield surface agree with
+#    measured ground truth on terrain it has seen", NOT as spatial transfer.
+#
+# 2. Resolution-limited. Prithvi's 14x14 patch embed gives 420 x 420 m tokens;
+#    30 m output is that grid bilinearly upsampled. BARC's 2,676 crop pixels fall
+#    in 61 tokens, NONE of which is 100% BARC (median BARC fill 20.4%). Every
+#    prediction is therefore dominated by non-BARC land inside its own token.
+#    Report FIELD-AGGREGATE metrics (barc_field_id_map.csv) as the headline;
+#    per-pixel scatter is secondary and must be labelled resolution-limited.
+#
+# 3. Expect a large positive bias. The target scaler baked into the Maryland
+#    checkpoints is zscore(center=46.68, scale=6.33) bu/ac -- Maryland's county
+#    pseudo-yield distribution. BARC 2024 measured yields average far below that.
+#    A systematic over-prediction is a genuine finding about label provenance,
+#    not a bug; do not "fix" it by re-fitting the scaler on BARC (that would use
+#    test labels and destroy the test).
+#
+# Architecture below is copied verbatim from
+# outputs/runs/maryland_soybeans/test2024/checkpoints/Decoder_Only/resolved_config.yaml
+# and MUST match the checkpoint being loaded, or load_from_checkpoint will fail
+# on shape mismatch. Change it only in lockstep with the checkpoint.
+experiment_name: barc_transfer
+
+data:
+  crop: SOYBEANS
+  states: [BARC]           # pseudo-state; see STATE_FIPS in config.py
+  years: [2014, 2015, 2016, 2017, 2018, 2019, 2020, 2021, 2022, 2023, 2024]
+
+  # BARC yield-monitor measurements, NOT NASS county statistics. The `nass_`
+  # prefix in the filename is forced by GeotiffMonthlyReader._label_path.
+  label_variant: measured
+  label_units: bu_ac
+
+  n_timesteps: 8
+  chip_size: 224
+  stride: 224
+  missing_month_policy: temporal_interp
+
+  # MANDATORY. BARC's soybean footprint is 0.13-3.05% of any 224x224 chip, so the
+  # 0.05 default makes _qualifying_chip_set return the empty set and the whole
+  # test set silently vanishes -- evaluate reports a result on zero samples rather
+  # than erroring. 0.0001 = 5 px of 50,176: keeps every chip holding real BARC
+  # data, drops the all-zero chips in the padded extent.
+  min_crop_fraction: 0.0001
+  min_label_fraction: 0.0
+
+  label_root: ../data_preparation/data/barc_data/yield_labels
+  cdl_root: ../data_preparation/data/barc_data/cdl_masks
+  imagery_root: ../data_preparation/data/barc_data/HLS_Composites
+  counties_path: ../data_preparation/data/county_maps/selected_states_counties_2023.gpkg
+
+  # Separate from the 15-state manifest so neither can clobber the other.
+  manifest_path: outputs/manifests/manifest_barc.parquet
+
+# Ignored in practice: evaluate_fold resolves norm stats from the checkpoint via
+# find_norm_stats and skips recomputation. Kept consistent with the checkpoint's
+# own resolved_config so nothing silently diverges if that path ever changes.
+norm:
+  mode: fold_training_statistics
+  target_scaling: zscore
+
+split:
+  policy: explicit_map
+  split_map_path: configs/splits/loyo_soybeans.yaml
+  test_year: 2024
+  val_years: [2023]
+
+model:
+  backbone_id: ibm-nasa-geospatial/Prithvi-EO-2.0-600M-TL
+  pretrained: true
+  finetune_mode: decoder_only
+  use_time_embed: true
+  use_location_embed: true
+  embed_dim: 1280
+  depth: 32
+  out_blocks_one_based: [8, 16, 24, 32]
+  aux_block_one_based: 24
+  temporal_reducer: flatten_time
+  decoder_channels: 1024
+  ppm_bins: [1, 2, 3, 6]
+  multiscale_fpn: false
+  head_dropout: 0.1
+  use_auxiliary: true
+  aux_channels: 256
+  final_activation: linear
+
+loss:
+  main: mse
+  huber_delta: 1.0
+  aux_weight: 0.2
+
+train:
+  seed: 0
+  # Inference only. batch_size is small because BARC has a handful of chips and
+  # cornbelt4 training may be sharing the GPU.
+  batch_size: 4
+  num_workers: 8
+  precision: bf16-mixed
+  accelerator: auto
