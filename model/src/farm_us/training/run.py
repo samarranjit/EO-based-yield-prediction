@@ -37,11 +37,29 @@ def resolve_fold(cfg: FarmConfig):
                      policy=cfg.split.policy, split_map=smap)
 
 
+def stats_chip_indices(n_total: int, max_chips: int | None, seed: int) -> list[int]:
+    """Which train-split chip indices the normalization pass should read.
+
+    ``max_chips=None`` (the default) returns every index in order, so the full
+    pass is unchanged down to iteration order. Otherwise draw a uniform sample
+    WITHOUT replacement and return it sorted -- sorting costs nothing and keeps
+    reads roughly sequential across the underlying rasters instead of seeking
+    randomly over a multi-gigabyte tile set.
+    """
+    if max_chips is None or max_chips >= n_total:
+        return list(range(n_total))
+    rng = np.random.default_rng(seed)
+    return sorted(int(i) for i in rng.choice(n_total, size=max_chips, replace=False))
+
+
 def compute_fold_stats(cfg: FarmConfig, dm: FarmDataModule) -> NormStats:
     """Train-fold-only normalization + target scaler.
 
     In synthetic mode we derive stats from the synthetic *train* dataset only.
     In official mode we use fixed Prithvi band stats. Never touches val/test.
+
+    Reads every train chip unless ``norm.stats_max_chips`` is set; see that
+    field for why subsampling is safe and when it is worth using.
     """
     train_ds = dm.train_ds
     # target scaler from training labels only
@@ -49,25 +67,97 @@ def compute_fold_stats(cfg: FarmConfig, dm: FarmDataModule) -> NormStats:
     n_bands = len(cfg.data.band_order)
     from ..data.normalization import StreamingBandStats
 
+    n_total = len(train_ds)
+    indices = stats_chip_indices(n_total, cfg.norm.stats_max_chips, cfg.norm.stats_seed)
+    if len(indices) < n_total:
+        logger.info(
+            "Stats pass: subsampling %d/%d train chips (seed=%d)",
+            len(indices), n_total, cfg.norm.stats_seed,
+        )
+    else:
+        logger.info("Stats pass: reading all %d train chips", n_total)
+
     sbs = StreamingBandStats(n_bands)
-    for i in range(len(train_ds)):
+    # Progress logging matters here even though it looks cosmetic: this loop is
+    # single-threaded and can run for many hours, during which the process
+    # otherwise emits nothing at all and is indistinguishable from a hang.
+    log_every = max(1, len(indices) // 40)
+    for done, i in enumerate(indices, start=1):
         s = train_ds[i]
         img = s["image"].numpy()  # [C,T,H,W]
         m = s["mask"].numpy()[0] > 0.5
         lab = s["label"].numpy()[0][m]
         labels.append(lab)
         sbs.update([img[b][:, m].ravel() for b in range(n_bands)])
+        if done % log_every == 0 or done == len(indices):
+            logger.info("Stats pass: %d/%d chips (%.0f%%)", done, len(indices),
+                        100.0 * done / len(indices))
     y = np.concatenate(labels) if labels else np.array([0.0])
     scaler = target_scaler_from_values(y, cfg.norm.target_scaling)
 
+    # Record the real fold train years rather than a placeholder -- this file is
+    # the provenance record a reviewer reads to confirm no test year leaked in.
+    train_years = list(resolve_fold(cfg).train_years)
+
     if cfg.norm.mode == "official_prithvi_statistics":
-        stats = official_prithvi_stats(list(range(1)), scaler)
+        stats = official_prithvi_stats(train_years, scaler)
     else:
         mean, std = sbs.finalize()
         stats = NormStats(
             band_mean=mean.tolist(), band_std=std.tolist(), target=scaler.to_dict(),
-            mode=cfg.norm.mode, train_years=[2019],
+            mode=cfg.norm.mode, train_years=train_years,
+            n_chips_used=len(indices), n_chips_total=n_total,
+            stats_seed=cfg.norm.stats_seed if len(indices) < n_total else None,
         )
+    return stats
+
+
+class StatsReuseError(RuntimeError):
+    """A norm_stats.json was offered for reuse that does not fit this fold."""
+
+
+def load_or_compute_fold_stats(cfg: FarmConfig, dm: FarmDataModule, fold) -> NormStats:
+    """Load ``norm.reuse_stats_from`` if set and valid, else run the stats pass.
+
+    The pass is deterministic given (train split, seed, cap), so recomputing it
+    after a crash or a precision change reproduces a file already on disk at a
+    cost of ~1 h (4-state fold) to ~19 h (unsubsampled). Reuse must nevertheless
+    be *checked*, not trusted: statistics carry the fingerprint of the years
+    they were computed on, and normalising with a file that saw the test year
+    would break LOYO silently and unrecoverably. We would rather spend the hour
+    than train on leaked statistics, so a mismatch raises instead of warning.
+    """
+    path = getattr(cfg.norm, "reuse_stats_from", None)
+    if not path:
+        return compute_fold_stats(cfg, dm)
+
+    p = Path(path)
+    if not p.exists():
+        raise StatsReuseError(
+            f"norm.reuse_stats_from={path} does not exist. Remove the option to "
+            f"recompute, or point it at a norm_stats.json from a matching fold."
+        )
+
+    stats = NormStats.load(p)
+    want = sorted(int(y) for y in fold.train_years)
+    got = sorted(int(y) for y in (stats.train_years or []))
+    if got != want:
+        raise StatsReuseError(
+            f"Refusing to reuse {path}: it was computed on train_years={got}, but "
+            f"this fold trains on {want}. Reusing it could normalise using the "
+            f"test year (see docs/LOYO_PROTOCOL.md). Recompute instead."
+        )
+    if stats.mode != cfg.norm.mode:
+        raise StatsReuseError(
+            f"Refusing to reuse {path}: mode={stats.mode!r} but config asks for "
+            f"{cfg.norm.mode!r}."
+        )
+
+    logger.warning(
+        "REUSING normalization stats from %s (train_years=%s, n_chips_used=%s, "
+        "seed=%s) -- statistics pass SKIPPED",
+        path, got, stats.n_chips_used, stats.stats_seed,
+    )
     return stats
 
 
@@ -80,7 +170,7 @@ def train_fold(cfg: FarmConfig, use_dummy: bool = True, dummy_embed_dim: int = 3
 
     dm = FarmDataModule(cfg, synthetic=use_dummy, n_synth=8)
     dm.setup()
-    stats = compute_fold_stats(cfg, dm)
+    stats = load_or_compute_fold_stats(cfg, dm, fold)
     dm.apply_norm_stats(stats)
 
     out_dir = Path(cfg.train.output_dir) / cfg.experiment_name / f"test{fold.test_year}"
