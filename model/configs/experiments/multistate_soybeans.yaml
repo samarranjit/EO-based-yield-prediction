@@ -1,0 +1,90 @@
+# 15-state US soybeans, 2020-2024, LOYO test year 2024.
+#
+# Scaled-up successor to maryland_soybeans.yaml. The Maryland-only experiment was
+# limited by SPATIAL diversity, not by training length: 2,433 training chips came
+# from only 343 distinct locations, and 99.6% of the 2024 test locations had
+# already been seen (in other years) during training. Every model plateaued or
+# overfit within ~20 epochs. Adding 14 more states attacks that directly.
+experiment_name: multistate_soybeans
+
+data:
+  crop: SOYBEANS
+  # The 15 states with complete pixel-distributed yield + HLS composites for
+  # 2020-2024. (VA and NC from the original 17-state plan have no data yet.)
+  states: [DE, IA, IL, IN, KS, MD, MI, MN, MO, ND, NE, OH, PA, SD, WI]
+  years: [2020, 2021, 2022, 2023, 2024]
+
+  label_variant: pseudo
+  # Confirmed from every raster's own band description: "pseudo_yield_bu_ac".
+  # These are bu/ac, NOT kg/ha (multiply by 67.251 for kg/ha). Reporting label
+  # only -- no effect on training or normalization.
+  label_units: bu_ac
+
+  n_timesteps: 8
+  chip_size: 224
+  stride: 224
+  missing_month_policy: temporal_interp
+
+  # Symlink tree matching GeotiffMonthlyReader's expected filename pattern,
+  # pointing at data_preparation/data/pixel_distributed_yield/tifs/.
+  label_root: ../data_preparation/data/yield_labels/multistate_pseudo
+  cdl_root: ../data_preparation/data/cdl_masks
+  # HLS composites already match the reader's pattern natively:
+  #   {imagery_root}/{year}/hls_soybeans_{ST}_{YEAR}_{MON}.tif
+  imagery_root: ../data_preparation/data/HLS_Composites
+  # DataConfig's default counties_path points at data/counties/, which is empty.
+  counties_path: ../data_preparation/data/county_maps/selected_states_counties_2023.gpkg
+
+  # NOTE: label and CDL/HLS rasters do NOT share a grid, and the offset differs
+  # per state (IA aligned; MD +1px in x; DE +1px in y; MI +3476,+4239px). All 15
+  # were verified to be WHOLE-pixel offsets, which raster_readers._aligned_window
+  # corrects exactly by deriving each window from shared geographic bounds. A
+  # fractional offset would raise DataContractError rather than silently skew.
+
+norm:
+  mode: fold_training_statistics
+  target_scaling: zscore
+
+split:
+  policy: explicit_map
+  split_map_path: configs/splits/loyo_soybeans.yaml
+  test_year: 2024
+  val_years: [2023]        # checkpoint selection only; never trained on
+
+model:
+  backbone_id: ibm-nasa-geospatial/Prithvi-EO-2.0-600M-TL
+  use_time_embed: true
+  use_location_embed: true
+  # decoder_only (825M -> 195M trainable) beat full fine-tuning on Maryland:
+  # val RMSE 4.22 vs 5.41, and the best epoch moved from 3 to 19. With far more
+  # spatial diversity here, full fine-tuning may become viable again -- worth
+  # revisiting as an ablation once this baseline is established.
+  finetune_mode: decoder_only
+  out_blocks_one_based: [8, 16, 24, 32]
+  aux_block_one_based: 24
+  temporal_reducer: flatten_time
+  decoder_channels: 1024
+  ppm_bins: [1, 2, 3, 6]
+  use_auxiliary: true
+
+loss:
+  main: mse
+  aux_weight: 0.2
+
+train:
+  seed: 0
+  epochs: 60
+  # batch 8 x accum 1 = effective 8, matching the paper and the Maryland runs.
+  # Frozen encoder profiled at ~10-13 GB, well inside the 47 GiB card; with far
+  # more data per epoch here, raising batch_size is the cheapest speedup.
+  batch_size: 8
+  grad_accum: 1
+  lr: 5.0e-6
+  min_lr: 1.0e-8
+  weight_decay: 0.1
+  warmup_epochs: 3
+  early_stopping: true
+  early_stopping_patience: 15
+  precision: bf16-mixed
+  ckpt_monitor: val/main_rmse_phys
+  ckpt_mode: min

@@ -1,0 +1,130 @@
+# 4 Corn Belt states (IA, IL, IN, MN), 2020-2024, LOYO test year 2024.
+#
+# Fast subset of multistate_soybeans.yaml, for getting a real signal in ~2 days
+# instead of ~5. Still 13x Maryland's training chips and ~40x its spatial
+# diversity -- more than enough to test whether the Maryland conclusions
+# (decoder_only beats full fine-tuning; everything overfits by epoch ~19) were
+# artefacts of having only 343 distinct locations.
+#
+#   train 2020-22 : 32,340 chips   (374M supervised pixels)
+#   val   2023    : 10,561 chips
+#   test  2024    : 10,799 chips
+#
+# NOTE: reuses the 15-state manifest at outputs/manifests/manifest.parquet --
+# FarmDataModule._setup_real filters it by data.states, so no rebuild is needed.
+# The manifest's stored fingerprint encodes the full 15-state list and so will
+# not match this config; nothing enforces it, but don't read a fingerprint
+# mismatch here as corruption.
+experiment_name: cornbelt4_soybeans
+
+data:
+  crop: SOYBEANS
+  states: [IA, IL, IN, MN]
+  years: [2020, 2021, 2022, 2023, 2024]
+
+  label_variant: pseudo
+  label_units: bu_ac          # rasters self-report "pseudo_yield_bu_ac"
+  n_timesteps: 8
+  chip_size: 224
+  stride: 224
+  missing_month_policy: temporal_interp
+
+  label_root: ../data_preparation/data/yield_labels/multistate_pseudo
+  cdl_root: ../data_preparation/data/cdl_masks
+  imagery_root: ../data_preparation/data/HLS_Composites
+  counties_path: ../data_preparation/data/county_maps/selected_states_counties_2023.gpkg
+
+  # Chips whose HLS imagery has a corrupt DEFLATE tile. A truncated tile raises
+  # only when decoded, inside a DataLoader worker, killing the run -- the first
+  # of these took down a run 30 min into training after a 57 min stats pass.
+  #
+  # Found by: uv run python scripts/scan_hls_corruption.py \
+  #             --config configs/experiments/cornbelt4_soybeans.yaml --workers 16 \
+  #             --out outputs/qc/hls_corruption_cornbelt4.json
+  # Report (2026-08-13): 128 files / 343,208 window reads scanned for 2020-2023;
+  # 2 corrupt files, 4 bad windows = 0.0012% of reads, 4 of 42,901 chips.
+  # In each file the two bad windows are adjacent on one row, consistent with a
+  # single interrupted write during download rather than disk failure.
+  #
+  # NOTE 2024 (the test year) was NOT part of that scan -- scan it before
+  # evaluating, or a bad tile will kill the eval instead of the training.
+  exclude_sample_ids:
+    - soybeans_IN_2021_r2464_c3360    # hls_soybeans_IN_2021_AUG.tif
+    - soybeans_IN_2021_r2464_c3584    # hls_soybeans_IN_2021_AUG.tif
+    - soybeans_IN_2022_r11648_c4928   # hls_soybeans_IN_2022_JUL.tif
+    - soybeans_IN_2022_r11648_c5152   # hls_soybeans_IN_2022_JUL.tif
+
+norm:
+  mode: fold_training_statistics
+  target_scaling: zscore
+
+split:
+  policy: explicit_map
+  split_map_path: configs/splits/loyo_soybeans.yaml
+  test_year: 2024
+  val_years: [2023]
+
+model:
+  backbone_id: ibm-nasa-geospatial/Prithvi-EO-2.0-600M-TL
+  use_time_embed: true
+  use_location_embed: true
+  # Won on Maryland (val RMSE 4.22 vs 5.41), but that was with only 343 distinct
+  # locations. With ~40x the spatial diversity here the capacity argument is much
+  # weaker -- run full fine-tuning as the direct ablation once this baseline lands.
+  finetune_mode: decoder_only
+  out_blocks_one_based: [8, 16, 24, 32]
+  aux_block_one_based: 24
+  temporal_reducer: flatten_time
+  decoder_channels: 1024
+  ppm_bins: [1, 2, 3, 6]
+  use_auxiliary: true
+
+loss:
+  main: mse
+  aux_weight: 0.2
+
+train:
+  seed: 0
+  # Maryland's best epoch was 19 with 13x LESS data per epoch, so convergence
+  # should arrive sooner here. 20 with patience 5 keeps the run bounded.
+  epochs: 20
+  warmup_epochs: 5
+  early_stopping: true
+  early_stopping_patience: 10
+
+  # Measured on this GPU (decoder_only): batch 8 -> 12.0 GB, 16 -> 19.9 GB,
+  # 24 -> 28.1 GB, 32 -> 36.3 GB of 47.26 GiB. 24 keeps ~19 GB headroom for
+  # fragmentation during a multi-day run.
+  batch_size: 24
+  grad_accum: 1
+  # Deliberately UNCHANGED from the paper's 5e-6 despite effective batch moving
+  # 8 -> 24. Linear LR scaling is an SGD-derived heuristic and is much weaker for
+  # AdamW, which already normalises by gradient magnitude. Keeping it fixed means
+  # batch size is the only optimisation variable that moved. If validation
+  # improves but is still falling when early stopping fires, raise it next run.
+  lr: 5.0e-6
+  min_lr: 1.0e-8
+  weight_decay: 0.1
+  # fp16, NOT bf16, because this machine's GPU is a Quadro RTX 8000 = Turing
+  # (sm_75). bf16 tensor cores start at Ampere (sm_80), so on this card bf16
+  # runs unaccelerated. Benchmarked here on a 4096^2 matmul:
+  #     fp32  5.50 TFLOP/s
+  #     fp16 36.14 TFLOP/s   <- tensor cores engaged
+  #     bf16  2.96 TFLOP/s   <- 12x slower than fp16, and slower than fp32
+  # Note torch.cuda.is_bf16_supported() returns True on sm_75; it reports that
+  # the dtype WORKS, not that it is accelerated, so it cannot be used to detect
+  # this. Under bf16 this run measured 15.0 s/step = 5.6 h/epoch = ~112 h for 20
+  # epochs. Lightning attaches a GradScaler automatically for fp16-mixed, which
+  # covers fp16's narrower dynamic range. If losses ever go NaN, fall back to
+  # `32` -- still ~1.9x faster than bf16 on this hardware -- not to bf16.
+  # Revisit if this ever runs on an Ampere or newer card, where bf16 is
+  # preferable for its wider exponent range.
+  #
+  # The value MUST be one of Lightning's tokens -- "fp16-mixed" is NOT one of
+  # them and raises ValueError from build_trainer, which runs AFTER the ~70 min
+  # stats pass, so a typo here costs a full pass before it surfaces. Valid:
+  #   16-true | 16-mixed | bf16-true | bf16-mixed | 32-true | 64-true | 16 | 32 | 64
+  precision: 16-mixed
+  ckpt_monitor: val/main_rmse_phys
+  ckpt_mode: min
+  periodic_ckpt_every_n_epochs: 5
