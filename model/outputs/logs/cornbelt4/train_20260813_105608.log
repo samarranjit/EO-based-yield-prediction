@@ -1,0 +1,211 @@
+warning: `VIRTUAL_ENV=/home/cholab/LabMembers/Samar/EO-based-yield-prediction/data_preparation/.venv` does not match the project environment path `.venv` and will be ignored; use `--active` to target the active environment instead
+[10:56:12] INFO     Fold: test=2024 val=[2023] train=[2020, 2021, 2022]         
+[10:57:41] WARNING  Excluded 4 chip(s) via data.exclude_sample_ids:             
+                    soybeans_IN_2021_r2464_c3360, soybeans_IN_2021_r2464_c3584, 
+                    soybeans_IN_2022_r11648_c4928, soybeans_IN_2022_r11648_c5152
+           INFO     manifest QC: 53696/98407 chips have qualifying imagery      
+[10:57:42] INFO     Stats pass: subsampling 2000/32336 train chips (seed=0)     
+[10:59:14] INFO     Stats pass: 50/2000 chips (2%)                              
+[11:00:55] INFO     Stats pass: 100/2000 chips (5%)                             
+[11:02:30] INFO     Stats pass: 150/2000 chips (8%)                             
+[11:03:55] INFO     Stats pass: 200/2000 chips (10%)                            
+[11:05:31] INFO     Stats pass: 250/2000 chips (12%)                            
+[11:07:06] INFO     Stats pass: 300/2000 chips (15%)                            
+[11:08:25] INFO     Stats pass: 350/2000 chips (18%)                            
+[11:09:57] INFO     Stats pass: 400/2000 chips (20%)                            
+[11:11:42] INFO     Stats pass: 450/2000 chips (22%)                            
+[11:13:20] INFO     Stats pass: 500/2000 chips (25%)                            
+[11:14:35] INFO     Stats pass: 550/2000 chips (28%)                            
+[11:17:07] INFO     Stats pass: 600/2000 chips (30%)                            
+[11:19:51] INFO     Stats pass: 650/2000 chips (32%)                            
+[11:22:04] INFO     Stats pass: 700/2000 chips (35%)                            
+[11:23:37] INFO     Stats pass: 750/2000 chips (38%)                            
+[11:26:29] INFO     Stats pass: 800/2000 chips (40%)                            
+[11:29:19] INFO     Stats pass: 850/2000 chips (42%)                            
+[11:32:13] INFO     Stats pass: 900/2000 chips (45%)                            
+[11:34:50] INFO     Stats pass: 950/2000 chips (48%)                            
+[11:37:47] INFO     Stats pass: 1000/2000 chips (50%)                           
+[11:40:42] INFO     Stats pass: 1050/2000 chips (52%)                           
+[11:42:57] INFO     Stats pass: 1100/2000 chips (55%)                           
+[11:44:01] INFO     Stats pass: 1150/2000 chips (58%)                           
+[11:45:18] INFO     Stats pass: 1200/2000 chips (60%)                           
+[11:46:26] INFO     Stats pass: 1250/2000 chips (62%)                           
+[11:47:36] INFO     Stats pass: 1300/2000 chips (65%)                           
+[11:48:37] INFO     Stats pass: 1350/2000 chips (68%)                           
+[11:49:59] INFO     Stats pass: 1400/2000 chips (70%)                           
+[11:51:17] INFO     Stats pass: 1450/2000 chips (72%)                           
+[11:52:08] INFO     Stats pass: 1500/2000 chips (75%)                           
+[11:53:05] INFO     Stats pass: 1550/2000 chips (78%)                           
+[11:54:24] INFO     Stats pass: 1600/2000 chips (80%)                           
+[11:55:52] INFO     Stats pass: 1650/2000 chips (82%)                           
+[11:57:02] INFO     Stats pass: 1700/2000 chips (85%)                           
+[11:57:47] INFO     Stats pass: 1750/2000 chips (88%)                           
+[11:59:15] INFO     Stats pass: 1800/2000 chips (90%)                           
+[12:00:59] INFO     Stats pass: 1850/2000 chips (92%)                           
+[12:03:20] INFO     Stats pass: 1900/2000 chips (95%)                           
+[12:05:00] INFO     Stats pass: 1950/2000 chips (98%)                           
+[12:07:14] INFO     Stats pass: 2000/2000 chips (100%)                          
+[12:07:17] INFO     Building TerraTorch backbone 'prithvi_eo_v2_600_tl'         
+                    (pretrained=True)                                           
+[12:07:23] INFO     HTTP Request: HEAD                                          
+                    https://huggingface.co/ibm-nasa-geospatial/Prithvi-EO-2.0-60
+                    0M-TL/resolve/main/Prithvi_EO_V2_600M_TL.pt "HTTP/1.1 302   
+                    Found"                                                      
+Warning: You are sending unauthenticated requests to the HF Hub. Please set a HF_TOKEN to enable higher rate limits and faster downloads.
+           WARNING  Warning: You are sending unauthenticated requests to the HF 
+                    Hub. Please set a HF_TOKEN to enable higher rate limits and 
+                    faster downloads.                                           
+[12:07:29] INFO     Loaded weights for HLSBands.BLUE in position 0 of patch     
+                    embed                                                       
+           INFO     Loaded weights for HLSBands.GREEN in position 1 of patch    
+                    embed                                                       
+           INFO     Loaded weights for HLSBands.RED in position 2 of patch embed
+           INFO     Loaded weights for HLSBands.NIR_NARROW in position 3 of     
+                    patch embed                                                 
+           INFO     Loaded weights for HLSBands.SWIR_1 in position 4 of patch   
+                    embed                                                       
+           INFO     Loaded weights for HLSBands.SWIR_2 in position 5 of patch   
+                    embed                                                       
+INFO: Using 16bit Automatic Mixed Precision (AMP)
+[12:07:31] INFO     Using 16bit Automatic Mixed Precision (AMP)                 
+INFO: GPU available: True (cuda), used: True
+           INFO     GPU available: True (cuda), used: True                      
+INFO: TPU available: False, using: 0 TPU cores
+           INFO     TPU available: False, using: 0 TPU cores                    
+INFO: 💡 Tip: For seamless cloud logging and experiment tracking, try installing [litlogger](https://pypi.org/project/litlogger/) to enable LitLogger, which logs metrics and artifacts automatically to the Lightning Experiments platform.
+           INFO     💡 Tip: For seamless cloud logging and experiment tracking, 
+                    try installing                                              
+                    [litlogger](https://pypi.org/project/litlogger/) to enable  
+                    LitLogger, which logs metrics and artifacts automatically to
+                    the Lightning Experiments platform.                         
+INFO: `Trainer(limit_train_batches=1.0)` was configured so 100% of the batches per epoch will be used..
+           INFO     `Trainer(limit_train_batches=1.0)` was configured so 100% of
+                    the batches per epoch will be used..                        
+INFO: `Trainer(limit_val_batches=1.0)` was configured so 100% of the batches will be used..
+           INFO     `Trainer(limit_val_batches=1.0)` was configured so 100% of  
+                    the batches will be used..                                  
+INFO: LOCAL_RANK: 0 - CUDA_VISIBLE_DEVICES: [0]
+           INFO     LOCAL_RANK: 0 - CUDA_VISIBLE_DEVICES: [0]                   
+/home/cholab/LabMembers/Samar/EO-based-yield-prediction/model/.venv/lib/python3.11/site-packages/lightning/pytorch/utilities/model_summary/model_summary.py:242: Precision 16-mixed is not supported by the model summary.  Estimated model size in MB will not be accurate. Using 32 bits instead.
+┏━━━┳━━━━━━━┳━━━━━━━━━━━┳━━━━━━━━┳━━━━━━━┳━━━━━━━┓
+┃   ┃ Name  ┃ Type      ┃ Params ┃ Mode  ┃ FLOPs ┃
+┡━━━╇━━━━━━━╇━━━━━━━━━━━╇━━━━━━━━╇━━━━━━━╇━━━━━━━┩
+│ 0 │ model │ FarmModel │  825 M │ train │     0 │
+└───┴───────┴───────────┴────────┴───────┴───────┘
+Trainable params: 194 M                                                         
+Non-trainable params: 631 M                                                     
+Total params: 825 M                                                             
+Total estimated model params size (MB): 3,303.789                               
+Modules in train mode: 826                                                      
+Modules in eval mode: 0                                                         
+Total FLOPs: 0                                                                  
+/home/cholab/LabMembers/Samar/EO-based-yield-prediction/model/.venv/lib/python3.11/site-packages/lightning/pytorch/utilities/_pytree.py:21: `isinstance(treespec, LeafSpec)` is deprecated, use `isinstance(treespec, TreeSpec) and treespec.is_leaf()` instead.
+INFO: [rank: 0] Received SIGTERM: 15
+INFO: [rank: 0] Received SIGTERM: 15
+           INFO     [rank: 0] Received SIGTERM: 15                              
+[23:46:02] INFO     [rank: 0] Received SIGTERM: 15                              
+Epoch 6/19 ━━━━━━           528/1347 0:42:03 •        0.45it/s v_num: 2         
+                                     0:30:13                   train/loss: 0.156
+                                                               val/loss: 0.436  
+Traceback (most recent call last):
+  File "/home/cholab/LabMembers/Samar/EO-based-yield-prediction/model/.venv/lib/python3.11/site-packages/lightning/pytorch/trainer/call.py", line 49, in _call_and_handle_interrupt
+    return trainer_fn(*args, **kwargs)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/cholab/LabMembers/Samar/EO-based-yield-prediction/model/.venv/lib/python3.11/site-packages/lightning/pytorch/trainer/trainer.py", line 630, in _fit_impl
+    self._run(model, ckpt_path=ckpt_path, weights_only=weights_only)
+  File "/home/cholab/LabMembers/Samar/EO-based-yield-prediction/model/.venv/lib/python3.11/site-packages/lightning/pytorch/trainer/trainer.py", line 1079, in _run
+    results = self._run_stage()
+              ^^^^^^^^^^^^^^^^^
+  File "/home/cholab/LabMembers/Samar/EO-based-yield-prediction/model/.venv/lib/python3.11/site-packages/lightning/pytorch/trainer/trainer.py", line 1123, in _run_stage
+    self.fit_loop.run()
+  File "/home/cholab/LabMembers/Samar/EO-based-yield-prediction/model/.venv/lib/python3.11/site-packages/lightning/pytorch/loops/fit_loop.py", line 217, in run
+    self.advance()
+  File "/home/cholab/LabMembers/Samar/EO-based-yield-prediction/model/.venv/lib/python3.11/site-packages/lightning/pytorch/loops/fit_loop.py", line 469, in advance
+    self.epoch_loop.run(self._data_fetcher)
+  File "/home/cholab/LabMembers/Samar/EO-based-yield-prediction/model/.venv/lib/python3.11/site-packages/lightning/pytorch/loops/training_epoch_loop.py", line 153, in run
+    self.advance(data_fetcher)
+  File "/home/cholab/LabMembers/Samar/EO-based-yield-prediction/model/.venv/lib/python3.11/site-packages/lightning/pytorch/loops/training_epoch_loop.py", line 311, in advance
+    batch, _, __ = next(data_fetcher)
+                   ^^^^^^^^^^^^^^^^^^
+  File "/home/cholab/LabMembers/Samar/EO-based-yield-prediction/model/.venv/lib/python3.11/site-packages/lightning/pytorch/loops/fetchers.py", line 134, in __next__
+    batch = super().__next__()
+            ^^^^^^^^^^^^^^^^^^
+  File "/home/cholab/LabMembers/Samar/EO-based-yield-prediction/model/.venv/lib/python3.11/site-packages/lightning/pytorch/loops/fetchers.py", line 61, in __next__
+    batch = next(self.iterator)
+            ^^^^^^^^^^^^^^^^^^^
+  File "/home/cholab/LabMembers/Samar/EO-based-yield-prediction/model/.venv/lib/python3.11/site-packages/lightning/pytorch/utilities/combined_loader.py", line 341, in __next__
+    out = next(self._iterator)
+          ^^^^^^^^^^^^^^^^^^^^
+  File "/home/cholab/LabMembers/Samar/EO-based-yield-prediction/model/.venv/lib/python3.11/site-packages/lightning/pytorch/utilities/combined_loader.py", line 78, in __next__
+    out[i] = next(self.iterators[i])
+             ^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/cholab/LabMembers/Samar/EO-based-yield-prediction/model/.venv/lib/python3.11/site-packages/torch/utils/data/dataloader.py", line 725, in __next__
+    data = self._next_data()
+           ^^^^^^^^^^^^^^^^^
+  File "/home/cholab/LabMembers/Samar/EO-based-yield-prediction/model/.venv/lib/python3.11/site-packages/torch/utils/data/dataloader.py", line 1505, in _next_data
+    idx, data = self._get_data()
+                ^^^^^^^^^^^^^^^^
+  File "/home/cholab/LabMembers/Samar/EO-based-yield-prediction/model/.venv/lib/python3.11/site-packages/torch/utils/data/dataloader.py", line 1464, in _get_data
+    success, data = self._try_get_data()
+                    ^^^^^^^^^^^^^^^^^^^^
+  File "/home/cholab/LabMembers/Samar/EO-based-yield-prediction/model/.venv/lib/python3.11/site-packages/torch/utils/data/dataloader.py", line 1291, in _try_get_data
+    data = self._data_queue.get(timeout=timeout)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/cholab/.local/share/uv/python/cpython-3.11.14-linux-x86_64-gnu/lib/python3.11/multiprocessing/queues.py", line 113, in get
+    if not self._poll(timeout):
+           ^^^^^^^^^^^^^^^^^^^
+  File "/home/cholab/.local/share/uv/python/cpython-3.11.14-linux-x86_64-gnu/lib/python3.11/multiprocessing/connection.py", line 257, in poll
+    return self._poll(timeout)
+           ^^^^^^^^^^^^^^^^^^^
+  File "/home/cholab/.local/share/uv/python/cpython-3.11.14-linux-x86_64-gnu/lib/python3.11/multiprocessing/connection.py", line 440, in _poll
+    r = wait([self], timeout)
+        ^^^^^^^^^^^^^^^^^^^^^
+  File "/home/cholab/.local/share/uv/python/cpython-3.11.14-linux-x86_64-gnu/lib/python3.11/multiprocessing/connection.py", line 948, in wait
+    ready = selector.select(timeout)
+            ^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/cholab/.local/share/uv/python/cpython-3.11.14-linux-x86_64-gnu/lib/python3.11/selectors.py", line 415, in select
+    fd_event_list = self._selector.poll(timeout)
+                    ^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/cholab/LabMembers/Samar/EO-based-yield-prediction/model/.venv/lib/python3.11/site-packages/torch/utils/data/_utils/signal_handling.py", line 73, in handler
+    _error_if_any_worker_fails()
+RuntimeError: DataLoader worker (pid 1722240) is killed by signal: Terminated. 
+
+During handling of the above exception, another exception occurred:
+
+Traceback (most recent call last):
+  File "<frozen runpy>", line 198, in _run_module_as_main
+  File "<frozen runpy>", line 88, in _run_code
+  File "/home/cholab/LabMembers/Samar/EO-based-yield-prediction/model/src/farm_us/cli.py", line 282, in <module>
+    main()
+  File "/home/cholab/LabMembers/Samar/EO-based-yield-prediction/model/src/farm_us/cli.py", line 278, in main
+    COMMANDS[args.command](args)
+  File "/home/cholab/LabMembers/Samar/EO-based-yield-prediction/model/src/farm_us/cli.py", line 219, in cmd_train
+    train_fold(_cfg(args), use_dummy="--real" not in sys.argv, resume_from=resume_from)
+  File "/home/cholab/LabMembers/Samar/EO-based-yield-prediction/model/src/farm_us/training/run.py", line 141, in train_fold
+    stats = NormStats.load(p)
+        ^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/cholab/LabMembers/Samar/EO-based-yield-prediction/model/.venv/lib/python3.11/site-packages/lightning/pytorch/trainer/trainer.py", line 584, in fit
+    call._call_and_handle_interrupt(
+  File "/home/cholab/LabMembers/Samar/EO-based-yield-prediction/model/.venv/lib/python3.11/site-packages/lightning/pytorch/trainer/call.py", line 70, in _call_and_handle_interrupt
+    trainer._teardown()
+  File "/home/cholab/LabMembers/Samar/EO-based-yield-prediction/model/.venv/lib/python3.11/site-packages/lightning/pytorch/trainer/trainer.py", line 1102, in _teardown
+    self.strategy.teardown()
+  File "/home/cholab/LabMembers/Samar/EO-based-yield-prediction/model/.venv/lib/python3.11/site-packages/lightning/pytorch/strategies/strategy.py", line 532, in teardown
+    _optimizers_to_device(self.optimizers, torch.device("cpu"))
+  File "/home/cholab/LabMembers/Samar/EO-based-yield-prediction/model/.venv/lib/python3.11/site-packages/lightning/fabric/utilities/optimizer.py", line 27, in _optimizers_to_device
+    _optimizer_to_device(opt, device)
+  File "/home/cholab/LabMembers/Samar/EO-based-yield-prediction/model/.venv/lib/python3.11/site-packages/lightning/fabric/utilities/optimizer.py", line 41, in _optimizer_to_device
+    v[key] = move_data_to_device(val, device)
+             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/cholab/LabMembers/Samar/EO-based-yield-prediction/model/.venv/lib/python3.11/site-packages/lightning/fabric/utilities/apply_func.py", line 110, in move_data_to_device
+    return apply_to_collection(batch, dtype=_TransferableDataType, function=batch_to)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/cholab/LabMembers/Samar/EO-based-yield-prediction/model/.venv/lib/python3.11/site-packages/lightning_utilities/core/apply_func.py", line 70, in apply_to_collection
+    return function(data, *args, **kwargs)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/cholab/LabMembers/Samar/EO-based-yield-prediction/model/.venv/lib/python3.11/site-packages/lightning/fabric/utilities/apply_func.py", line 104, in batch_to
+    data_output = data.to(device, **kwargs)
+                  ^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/cholab/LabMembers/Samar/EO-based-yield-prediction/model/.venv/lib/python3.11/site-packages/torch/utils/data/_utils/signal_handling.py", line 73, in handler
+    _error_if_any_worker_fails()
+RuntimeError: DataLoader worker (pid 1728118) is killed by signal: Terminated. 

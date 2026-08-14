@@ -1,0 +1,41 @@
+warning: `VIRTUAL_ENV=/home/cholab/LabMembers/Samar/EO-based-yield-prediction/data_preparation/.venv` does not match the project environment path `.venv` and will be ignored; use `--active` to target the active environment instead
+manifest rows for ['IA', 'IL', 'IN', 'MN'] [2020, 2021, 2022, 2023]: 79,316
+after qualifying filter: 42,901 chips (what training reads)
+scanning 128 files / 343,208 window reads with 16 workers
+
+[10:30:06] INFO     GDAL signalled an error: err_no=1, msg='ZIPDecode:Decoding  
+                    error at scanline 3360'                                     
+           INFO     GDAL signalled an error: err_no=1,                          
+                    msg='TIFFReadEncodedTile() failed.'                         
+           INFO     GDAL signalled an error: err_no=1,                          
+                    msg='hls_soybeans_IN_2021_AUG.tif, band 1: IReadBlock failed
+                    at X offset 15, Y offset 11: TIFFReadEncodedTile() failed.' 
+[10:31:04] INFO     GDAL signalled an error: err_no=1, msg='ZIPDecode:Decoding  
+                    error at scanline 4928'                                     
+           INFO     GDAL signalled an error: err_no=1,                          
+                    msg='TIFFReadEncodedTile() failed.'                         
+           INFO     GDAL signalled an error: err_no=1,                          
+                    msg='hls_soybeans_IN_2022_JUL.tif, band 1: IReadBlock failed
+                    at X offset 22, Y offset 52: TIFFReadEncodedTile() failed.' 
+[10/128] ok  (4.0 min elapsed, ~47 min left)
+[20/128] ok  (7.8 min elapsed, ~42 min left)
+[30/128] ok  (10.0 min elapsed, ~33 min left)
+[40/128] ok  (11.9 min elapsed, ~26 min left)
+[50/128] ok  (14.6 min elapsed, ~23 min left)
+[60/128] ok  (17.7 min elapsed, ~20 min left)
+[69/128] CORRUPT hls_soybeans_IN_2022_JUL.tif: 2 bad window(s)
+[70/128] ok  (19.5 min elapsed, ~16 min left)
+[76/128] CORRUPT hls_soybeans_IN_2021_AUG.tif: 2 bad window(s)
+[80/128] ok  (23.4 min elapsed, ~14 min left)
+[90/128] ok  (26.4 min elapsed, ~11 min left)
+[100/128] ok  (29.3 min elapsed, ~8 min left)
+[110/128] ok  (31.4 min elapsed, ~5 min left)
+[120/128] ok  (33.0 min elapsed, ~2 min left)
+
+============================================================
+files with corrupt blocks : 2
+unreadable files          : 0
+bad window reads          : 4 of 343,208 (0.0012%)
+distinct chips affected   : 4
+elapsed                   : 33.3 min
+report -> outputs/qc/hls_corruption_cornbelt4.json
