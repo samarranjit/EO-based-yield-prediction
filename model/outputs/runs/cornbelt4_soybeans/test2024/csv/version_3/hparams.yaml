@@ -1,0 +1,127 @@
+config:
+  data:
+    imagery_root: ../data_preparation/data/HLS_Composites
+    label_root: ../data_preparation/data/yield_labels/multistate_pseudo
+    cdl_root: ../data_preparation/data/cdl_masks
+    counties_path: ../data_preparation/data/county_maps/selected_states_counties_2023.gpkg
+    nass_csv: ../data_preparation/data/nass/nass_soybeans_county_yield_2014_2024.csv
+    manifest_path: outputs/manifests/manifest.parquet
+    crop: SOYBEANS
+    states:
+    - IA
+    - IL
+    - IN
+    - MN
+    years:
+    - 2020
+    - 2021
+    - 2022
+    - 2023
+    - 2024
+    reader: geotiff_monthly
+    label_variant: pseudo
+    label_units: bu_ac
+    band_order:
+    - BLUE
+    - GREEN
+    - RED
+    - NIR_NARROW
+    - SWIR1
+    - SWIR2
+    chip_size: 224
+    stride: 224
+    n_timesteps: 8
+    target_crs: EPSG:5070
+    resolution_m: 30.0
+    nodata: -9999.0
+    hls_scale: 0.0001
+    hls_nodata: -9999.0
+    missing_month_policy: temporal_interp
+    min_crop_fraction: 0.05
+    min_label_fraction: 0.05
+    min_month_valid_fraction: 0.1
+    max_missing_months: 3
+    exclude_geoids:
+    - '24033'
+    exclude_sample_ids:
+    - soybeans_IN_2021_r2464_c3360
+    - soybeans_IN_2021_r2464_c3584
+    - soybeans_IN_2022_r11648_c4928
+    - soybeans_IN_2022_r11648_c5152
+  norm:
+    mode: fold_training_statistics
+    target_scaling: zscore
+    stats_path: outputs/stats/norm_stats.json
+    stats_max_chips: null
+    stats_seed: 0
+    reuse_stats_from: outputs/runs/cornbelt4_soybeans/test2024/archive/batch24_decoder_only/norm_stats.json
+  split:
+    test_year: 2024
+    val_years:
+    - 2023
+    policy: explicit_map
+    split_map_path: configs/splits/loyo_soybeans.yaml
+  model:
+    backbone_id: ibm-nasa-geospatial/Prithvi-EO-2.0-600M-TL
+    pretrained: true
+    finetune_mode: decoder_only
+    use_time_embed: true
+    use_location_embed: true
+    gradient_checkpointing: false
+    embed_dim: 1280
+    depth: 32
+    out_blocks_one_based:
+    - 8
+    - 16
+    - 24
+    - 32
+    aux_block_one_based: 24
+    temporal_reducer: flatten_time
+    decoder_channels: 1024
+    ppm_bins:
+    - 1
+    - 2
+    - 3
+    - 6
+    multiscale_fpn: false
+    head_dropout: 0.1
+    use_auxiliary: true
+    aux_channels: 256
+    final_activation: linear
+  loss:
+    main: mse
+    huber_delta: 1.0
+    aux_weight: 0.2
+  augment:
+    hflip_p: 0.2
+    vflip_p: 0.2
+    noise_p: 0.4
+    noise_std: 0.1
+  train:
+    seed: 0
+    epochs: 20
+    batch_size: 8
+    grad_accum: 1
+    optimizer: adamw
+    lr: 5.0e-06
+    min_lr: 1.0e-08
+    weight_decay: 0.1
+    warmup_epochs: 5
+    scheduler: cosine
+    precision: 16-mixed
+    grad_clip: null
+    num_workers: 32
+    strategy: single
+    devices: 1
+    accelerator: auto
+    early_stopping: true
+    early_stopping_patience: 10
+    detect_anomaly: false
+    limit_train_batches: null
+    limit_val_batches: null
+    log_wandb: false
+    output_dir: outputs/runs
+    ckpt_monitor: val/main_rmse_phys
+    ckpt_mode: min
+    periodic_ckpt_every_n_epochs: 5
+  experiment_name: cornbelt4_soybeans

@@ -87,16 +87,17 @@ train:
   seed: 0
   # Maryland's best epoch was 19 with 13x LESS data per epoch, so convergence
   # should arrive sooner here. 20 with patience 5 keeps the run bounded.
-  epochs: 20
-  warmup_epochs: 5
+  epochs: 30
+  warmup_epochs: 3
   early_stopping: true
   early_stopping_patience: 10
+  grad_clip: 1.0
 
   # Measured on this GPU (decoder_only): batch 8 -> 12.0 GB, 16 -> 19.9 GB,
   # 24 -> 28.1 GB, 32 -> 36.3 GB of 47.26 GiB. 24 keeps ~19 GB headroom for
   # fragmentation during a multi-day run.
-  batch_size: 24
-  grad_accum: 1
+  batch_size: 8
+  grad_accum: 3
   # Deliberately UNCHANGED from the paper's 5e-6 despite effective batch moving
   # 8 -> 24. Linear LR scaling is an SGD-derived heuristic and is much weaker for
   # AdamW, which already normalises by gradient magnitude. Keeping it fixed means
@@ -104,7 +105,7 @@ train:
   # improves but is still falling when early stopping fires, raise it next run.
   lr: 5.0e-6
   min_lr: 1.0e-8
-  weight_decay: 0.1
+  weight_decay: 0.3
   # fp16, NOT bf16, because this machine's GPU is a Quadro RTX 8000 = Turing
   # (sm_75). bf16 tensor cores start at Ampere (sm_80), so on this card bf16
   # runs unaccelerated. Benchmarked here on a 4096^2 matmul:
