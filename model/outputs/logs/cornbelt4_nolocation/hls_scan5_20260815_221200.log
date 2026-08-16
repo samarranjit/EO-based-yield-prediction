@@ -1,0 +1,36 @@
+warning: `VIRTUAL_ENV=/home/cholab/LabMembers/Samar/EO-based-yield-prediction/data_preparation/.venv` does not match the project environment path `.venv` and will be ignored; use `--active` to target the active environment instead
+manifest rows for ['IA', 'IL', 'IN', 'MD', 'MN'] [2020, 2021, 2022, 2023, 2024]: 107,407
+[22:13:39] WARNING  Excluded 4 chip(s) via data.exclude_sample_ids:             
+                    soybeans_IN_2021_r2464_c3360, soybeans_IN_2021_r2464_c3584, 
+                    soybeans_IN_2022_r11648_c4928, soybeans_IN_2022_r11648_c5152
+after qualifying filter: 55,093 chips (what training reads)
+scanning 200 files / 440,744 window reads with 16 workers
+
+[10/200] ok  (4.8 min elapsed, ~91 min left)
+[20/200] ok  (9.1 min elapsed, ~82 min left)
+[30/200] ok  (11.4 min elapsed, ~65 min left)
+[40/200] ok  (14.6 min elapsed, ~58 min left)
+[50/200] ok  (16.6 min elapsed, ~50 min left)
+[60/200] ok  (17.7 min elapsed, ~41 min left)
+[70/200] ok  (19.8 min elapsed, ~37 min left)
+[80/200] ok  (21.8 min elapsed, ~33 min left)
+[90/200] ok  (25.7 min elapsed, ~31 min left)
+[100/200] ok  (27.9 min elapsed, ~28 min left)
+[110/200] ok  (29.6 min elapsed, ~24 min left)
+[120/200] ok  (30.1 min elapsed, ~20 min left)
+[130/200] ok  (30.6 min elapsed, ~16 min left)
+[140/200] ok  (30.9 min elapsed, ~13 min left)
+[150/200] ok  (31.2 min elapsed, ~10 min left)
+[160/200] ok  (34.1 min elapsed, ~9 min left)
+[170/200] ok  (37.0 min elapsed, ~7 min left)
+[180/200] ok  (38.3 min elapsed, ~4 min left)
+[190/200] ok  (40.9 min elapsed, ~2 min left)
+[200/200] ok  (41.5 min elapsed, ~0 min left)
+
+============================================================
+files with corrupt blocks : 0
+unreadable files          : 0
+bad window reads          : 0 of 440,744 (0.0000%)
+distinct chips affected   : 0
+elapsed                   : 41.5 min
+report -> outputs/qc/hls_corruption_cornbelt5.json
