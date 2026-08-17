@@ -1,0 +1,120 @@
+# 5 states (IA, IL, IN, MD, MN), 2020-2024, LOYO test year 2024, decoder_only.
+#
+# Successor to cornbelt4_soybeans.yaml. Adding Maryland is aimed at the component
+# that actually carries the signal: a variance decomposition of the 2023 labels
+# (3.0M pixels, 186 counties) showed
+#     BETWEEN counties  std 6.911  = 84% of label variance
+#     WITHIN  counties  std 2.983  = 16%
+# so predicting county means is essentially the whole task, and more counties is
+# more of the thing being learned. MD adds 24 counties x 3 train years.
+#
+# WHAT THE cornbelt4 RUNS ESTABLISHED (all measured, not assumed):
+#   - val R2 plateaus at ~0.48-0.50 from epoch 0; train loss keeps falling 3x.
+#   - Ruled out as the cause: spatial diversity (31x more locations, no effect),
+#     batch size (3x change, no effect), and location embeddings (removing them
+#     made it slightly BETTER: R2 0.4978 vs 0.4829).
+#   - Also ruled out: a label information ceiling. If the model predicted every
+#     county mean exactly, residual RMSE would be 2.98 bu/ac; it achieves 5.29,
+#     so ~41% of the achievable signal is still unclaimed.
+#   - Leading remaining hypothesis: scale mismatch. A 224x224 chip at 30 m spans
+#     6.72 km, but a county is ~50 km across, so each chip sees ~2% of the area
+#     whose mean it must predict. Untested.
+#
+# Location embeddings are ON here (per request). The no-location ablation showed
+# they are not load-bearing, so this is not a leakage concern -- but that run also
+# carried the new regularisation, so the two were not perfectly isolated. See
+# docs/LOCATION_EMBEDDING_RISK.md.
+#
+# NOTE: reuses the 15-state manifest -- FarmDataModule._setup_real filters it by
+# data.states, so NO rebuild is needed for the added state.
+#
+# NORM STATS MUST BE RECOMPUTED, NOT REUSED. The train split changed (MD chips
+# added), so the 4-state norm_stats.json no longer describes this fold. Beware:
+# the reuse guard in training/run.py validates train_years only -- it would NOT
+# catch a states mismatch and would accept the 4-state file. Do not pass
+# norm.reuse_stats_from here.
+experiment_name: cornbelt5_soybeans
+
+data:
+  crop: SOYBEANS
+  states: [IA, IL, IN, MD, MN]
+  years: [2020, 2021, 2022, 2023, 2024]
+
+  label_variant: pseudo
+  label_units: bu_ac
+  n_timesteps: 8
+  chip_size: 224
+  stride: 224
+  missing_month_policy: temporal_interp
+
+  label_root: ../data_preparation/data/yield_labels/multistate_pseudo
+  cdl_root: ../data_preparation/data/cdl_masks
+  imagery_root: ../data_preparation/data/HLS_Composites
+  counties_path: ../data_preparation/data/county_maps/selected_states_counties_2023.gpkg
+
+  # Chips whose HLS imagery has a corrupt DEFLATE tile -- these raise only when
+  # decoded, inside a DataLoader worker, killing the run hours in.
+  # Populated from scripts/scan_hls_corruption.py; see outputs/qc/.
+  exclude_sample_ids:
+    - soybeans_IN_2021_r2464_c3360    # hls_soybeans_IN_2021_AUG.tif
+    - soybeans_IN_2021_r2464_c3584    # hls_soybeans_IN_2021_AUG.tif
+    - soybeans_IN_2022_r11648_c4928   # hls_soybeans_IN_2022_JUL.tif
+    - soybeans_IN_2022_r11648_c5152   # hls_soybeans_IN_2022_JUL.tif
+
+norm:
+  mode: fold_training_statistics
+  target_scaling: zscore
+  # 2,000 chips is far past convergence for 6 band means/stds: measured relative
+  # error 0.2-0.6% on band means and 3.4% on the target scale, against ~19 h for
+  # the full pass. Seeded, train-split only.
+  stats_max_chips: 2000
+  stats_seed: 0
+
+split:
+  policy: explicit_map
+  split_map_path: configs/splits/loyo_soybeans.yaml
+  test_year: 2024
+  val_years: [2023]
+
+model:
+  backbone_id: ibm-nasa-geospatial/Prithvi-EO-2.0-600M-TL
+  use_time_embed: true
+  use_location_embed: true      # ON, per request
+  finetune_mode: decoder_only   # 825M -> 194M trainable
+  out_blocks_one_based: [8, 16, 24, 32]
+  aux_block_one_based: 24
+  temporal_reducer: flatten_time
+  decoder_channels: 1024        # paper value; kept -- the paper reached R2 0.81
+  ppm_bins: [1, 2, 3, 6]
+  use_auxiliary: true
+  head_dropout: 0.1             # paper value
+
+loss:
+  main: mse
+  aux_weight: 0.2
+
+train:
+  seed: 0
+  epochs: 30
+  warmup_epochs: 3              # 3 of 30 = 10%; cornbelt4's 5 of 20 (25%) meant
+                                # validation was still read during LR ramp-up.
+  early_stopping: true
+  early_stopping_patience: 10
+
+  # batch 8 keeps the favourable disk read pattern (measured 7.7 chips/s vs 5.9
+  # at batch 24 -- this box reads from a 7200 rpm HDD and is IO-bound, not
+  # compute-bound), while accum 3 restores the effective batch of 24.
+  batch_size: 8
+  grad_accum: 3
+  lr: 5.0e-6
+  min_lr: 1.0e-8
+  weight_decay: 0.3
+  # 22 inf gradients and 94 spikes above 10x median were observed unclipped in
+  # the cornbelt4 batch-8 run; fp16 has a narrower exponent range than bf16.
+  grad_clip: 1.0
+
+  precision: 16-mixed
+
+  ckpt_monitor: val/main_rmse_phys
+  ckpt_mode: min
+  periodic_ckpt_every_n_epochs: 5

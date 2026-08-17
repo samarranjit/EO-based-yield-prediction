@@ -1,0 +1,107 @@
+warning: `VIRTUAL_ENV=/home/cholab/LabMembers/Samar/EO-based-yield-prediction/data_preparation/.venv` does not match the project environment path `.venv` and will be ignored; use `--active` to target the active environment instead
+[22:18:02] INFO     Fold: test=2024 val=[2023] train=[2020, 2021, 2022]         
+[22:19:40] WARNING  Excluded 4 chip(s) via data.exclude_sample_ids:             
+                    soybeans_IN_2021_r2464_c3360, soybeans_IN_2021_r2464_c3584, 
+                    soybeans_IN_2022_r11648_c4928, soybeans_IN_2022_r11648_c5152
+           INFO     manifest QC: 55093/107407 chips have qualifying imagery     
+[22:19:41] INFO     Stats pass: subsampling 2000/33215 train chips (seed=0)     
+[22:21:01] INFO     Stats pass: 50/2000 chips (2%)                              
+[22:22:18] INFO     Stats pass: 100/2000 chips (5%)                             
+[22:25:03] INFO     Stats pass: 150/2000 chips (8%)                             
+[22:30:19] INFO     Stats pass: 200/2000 chips (10%)                            
+[22:36:27] INFO     Stats pass: 250/2000 chips (12%)                            
+[22:39:40] INFO     Stats pass: 300/2000 chips (15%)                            
+[22:41:47] INFO     Stats pass: 350/2000 chips (18%)                            
+[22:44:07] INFO     Stats pass: 400/2000 chips (20%)                            
+[22:46:54] INFO     Stats pass: 450/2000 chips (22%)                            
+[22:49:51] INFO     Stats pass: 500/2000 chips (25%)                            
+[22:53:15] INFO     Stats pass: 550/2000 chips (28%)                            
+[22:56:58] INFO     Stats pass: 600/2000 chips (30%)                            
+[22:59:20] INFO     Stats pass: 650/2000 chips (32%)                            
+[23:00:53] INFO     Stats pass: 700/2000 chips (35%)                            
+[23:03:19] INFO     Stats pass: 750/2000 chips (38%)                            
+[23:06:03] INFO     Stats pass: 800/2000 chips (40%)                            
+[23:08:54] INFO     Stats pass: 850/2000 chips (42%)                            
+[23:11:32] INFO     Stats pass: 900/2000 chips (45%)                            
+[23:14:27] INFO     Stats pass: 950/2000 chips (48%)                            
+[23:17:23] INFO     Stats pass: 1000/2000 chips (50%)                           
+[23:19:57] INFO     Stats pass: 1050/2000 chips (52%)                           
+[23:21:03] INFO     Stats pass: 1100/2000 chips (55%)                           
+[23:22:16] INFO     Stats pass: 1150/2000 chips (58%)                           
+[23:23:20] INFO     Stats pass: 1200/2000 chips (60%)                           
+[23:24:27] INFO     Stats pass: 1250/2000 chips (62%)                           
+[23:25:32] INFO     Stats pass: 1300/2000 chips (65%)                           
+[23:26:50] INFO     Stats pass: 1350/2000 chips (68%)                           
+[23:28:02] INFO     Stats pass: 1400/2000 chips (70%)                           
+[23:29:00] INFO     Stats pass: 1450/2000 chips (72%)                           
+[23:30:13] INFO     Stats pass: 1500/2000 chips (75%)                           
+[23:31:26] INFO     Stats pass: 1550/2000 chips (78%)                           
+[23:32:54] INFO     Stats pass: 1600/2000 chips (80%)                           
+[23:34:36] INFO     Stats pass: 1650/2000 chips (82%)                           
+[23:35:56] INFO     Stats pass: 1700/2000 chips (85%)                           
+[23:37:12] INFO     Stats pass: 1750/2000 chips (88%)                           
+[23:38:56] INFO     Stats pass: 1800/2000 chips (90%)                           
+[23:41:00] INFO     Stats pass: 1850/2000 chips (92%)                           
+[23:43:40] INFO     Stats pass: 1900/2000 chips (95%)                           
+[23:46:09] INFO     Stats pass: 1950/2000 chips (98%)                           
+[23:48:42] INFO     Stats pass: 2000/2000 chips (100%)                          
+[23:48:48] INFO     Building TerraTorch backbone 'prithvi_eo_v2_600_tl'         
+                    (pretrained=True)                                           
+[23:48:55] INFO     HTTP Request: GET https://huggingface.co/api/agent-harnesses
+                    "HTTP/1.1 200 OK"                                           
+           INFO     HTTP Request: HEAD                                          
+                    https://huggingface.co/ibm-nasa-geospatial/Prithvi-EO-2.0-60
+                    0M-TL/resolve/main/Prithvi_EO_V2_600M_TL.pt "HTTP/1.1 302   
+                    Found"                                                      
+[23:49:00] INFO     Loaded weights for HLSBands.BLUE in position 0 of patch     
+                    embed                                                       
+           INFO     Loaded weights for HLSBands.GREEN in position 1 of patch    
+                    embed                                                       
+           INFO     Loaded weights for HLSBands.RED in position 2 of patch embed
+           INFO     Loaded weights for HLSBands.NIR_NARROW in position 3 of     
+                    patch embed                                                 
+           INFO     Loaded weights for HLSBands.SWIR_1 in position 4 of patch   
+                    embed                                                       
+           INFO     Loaded weights for HLSBands.SWIR_2 in position 5 of patch   
+                    embed                                                       
+INFO: Using 16bit Automatic Mixed Precision (AMP)
+[23:49:02] INFO     Using 16bit Automatic Mixed Precision (AMP)                 
+INFO: GPU available: True (cuda), used: True
+           INFO     GPU available: True (cuda), used: True                      
+INFO: TPU available: False, using: 0 TPU cores
+           INFO     TPU available: False, using: 0 TPU cores                    
+INFO: 💡 Tip: For seamless cloud logging and experiment tracking, try installing [litlogger](https://pypi.org/project/litlogger/) to enable LitLogger, which logs metrics and artifacts automatically to the Lightning Experiments platform.
+           INFO     💡 Tip: For seamless cloud logging and experiment tracking, 
+                    try installing                                              
+                    [litlogger](https://pypi.org/project/litlogger/) to enable  
+                    LitLogger, which logs metrics and artifacts automatically to
+                    the Lightning Experiments platform.                         
+INFO: `Trainer(limit_train_batches=1.0)` was configured so 100% of the batches per epoch will be used..
+           INFO     `Trainer(limit_train_batches=1.0)` was configured so 100% of
+                    the batches per epoch will be used..                        
+INFO: `Trainer(limit_val_batches=1.0)` was configured so 100% of the batches will be used..
+           INFO     `Trainer(limit_val_batches=1.0)` was configured so 100% of  
+                    the batches will be used..                                  
+INFO: LOCAL_RANK: 0 - CUDA_VISIBLE_DEVICES: [0]
+           INFO     LOCAL_RANK: 0 - CUDA_VISIBLE_DEVICES: [0]                   
+/home/cholab/LabMembers/Samar/EO-based-yield-prediction/model/.venv/lib/python3.11/site-packages/lightning/pytorch/utilities/model_summary/model_summary.py:242: Precision 16-mixed is not supported by the model summary.  Estimated model size in MB will not be accurate. Using 32 bits instead.
+┏━━━┳━━━━━━━┳━━━━━━━━━━━┳━━━━━━━━┳━━━━━━━┳━━━━━━━┓
+┃   ┃ Name  ┃ Type      ┃ Params ┃ Mode  ┃ FLOPs ┃
+┡━━━╇━━━━━━━╇━━━━━━━━━━━╇━━━━━━━━╇━━━━━━━╇━━━━━━━┩
+│ 0 │ model │ FarmModel │  825 M │ train │     0 │
+└───┴───────┴───────────┴────────┴───────┴───────┘
+Trainable params: 194 M                                                         
+Non-trainable params: 631 M                                                     
+Total params: 825 M                                                             
+Total estimated model params size (MB): 3,303.789                               
+Modules in train mode: 826                                                      
+Modules in eval mode: 0                                                         
+Total FLOPs: 0                                                                  
+/home/cholab/LabMembers/Samar/EO-based-yield-prediction/model/.venv/lib/python3.11/site-packages/lightning/pytorch/utilities/_pytree.py:21: `isinstance(treespec, LeafSpec)` is deprecated, use `isinstance(treespec, TreeSpec) and treespec.is_leaf()` instead.
+Epoch 15/29 ━━━━━━━━━━━━━━━ 4151/4151 1:22:01 •       1.25it/s v_num: 0         
+                                      0:00:00                  train/loss: 0.133
+                                                               val/loss: 0.418  
+[03:52:40] INFO     Best checkpoint:                                            
+                    /home/cholab/LabMembers/Samar/EO-based-yield-prediction/mode
+                    l/outputs/runs/cornbelt5_soybeans/test2024/checkpoints/farm-
+                    005-0.0000.ckpt                                             
