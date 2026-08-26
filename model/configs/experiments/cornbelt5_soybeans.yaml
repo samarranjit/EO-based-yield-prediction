@@ -33,7 +33,7 @@
 # the reuse guard in training/run.py validates train_years only -- it would NOT
 # catch a states mismatch and would accept the 4-state file. Do not pass
 # norm.reuse_stats_from here.
-experiment_name: cornbelt5_soybeans
+experiment_name: cornbelt5_soybeans_attention
 
 data:
   crop: SOYBEANS
@@ -83,7 +83,7 @@ model:
   finetune_mode: decoder_only   # 825M -> 194M trainable
   out_blocks_one_based: [8, 16, 24, 32]
   aux_block_one_based: 24
-  temporal_reducer: flatten_time
+  temporal_reducer: attention
   decoder_channels: 1024        # paper value; kept -- the paper reached R2 0.81
   ppm_bins: [1, 2, 3, 6]
   use_auxiliary: true
