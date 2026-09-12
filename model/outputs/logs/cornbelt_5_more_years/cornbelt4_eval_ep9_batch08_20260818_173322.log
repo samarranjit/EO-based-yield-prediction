@@ -1,0 +1,38 @@
+[17:35:02] WARNING  Excluded 4 chip(s) via data.exclude_sample_ids:             
+                    soybeans_IN_2021_r2464_c3360, soybeans_IN_2021_r2464_c3584, 
+                    soybeans_IN_2022_r11648_c4928, soybeans_IN_2022_r11648_c5152
+[17:35:03] INFO     manifest QC: 53696/98407 chips have qualifying imagery      
+           INFO     Loaded saved norm stats from                                
+                    /home/cholab/LabMembers/Samar/EO-based-yield-prediction/mode
+                    l/outputs/runs/cornbelt4_soybeans/test2024/norm_stats.json  
+                    (skipping recompute)                                        
+[17:35:13] INFO     Building TerraTorch backbone 'prithvi_eo_v2_600_tl'         
+                    (pretrained=True)                                           
+[17:35:20] INFO     HTTP Request: HEAD                                          
+                    https://huggingface.co/ibm-nasa-geospatial/Prithvi-EO-2.0-60
+                    0M-TL/resolve/main/Prithvi_EO_V2_600M_TL.pt "HTTP/1.1 302   
+                    Found"                                                      
+Warning: You are sending unauthenticated requests to the HF Hub. Please set a HF_TOKEN to enable higher rate limits and faster downloads.
+           WARNING  Warning: You are sending unauthenticated requests to the HF 
+                    Hub. Please set a HF_TOKEN to enable higher rate limits and 
+                    faster downloads.                                           
+[17:35:25] INFO     Loaded weights for HLSBands.BLUE in position 0 of patch     
+                    embed                                                       
+           INFO     Loaded weights for HLSBands.GREEN in position 1 of patch    
+                    embed                                                       
+           INFO     Loaded weights for HLSBands.RED in position 2 of patch embed
+           INFO     Loaded weights for HLSBands.NIR_NARROW in position 3 of     
+                    patch embed                                                 
+           INFO     Loaded weights for HLSBands.SWIR_1 in position 4 of patch   
+                    embed                                                       
+           INFO     Loaded weights for HLSBands.SWIR_2 in position 5 of patch   
+                    embed                                                       
+[17:35:29] INFO     Evaluating on cuda                                          
+/home/cholab/LabMembers/Samar/EO-based-yield-prediction/model/.venv/lib/python3.11/site-packages/pandas/io/parquet.py:490: UserWarning: Could not serialize pd.DataFrame.attrs: Object of type ndarray is not JSON serializable, defaulting to empty attributes.
+  impl.write(
+[19:17:44] INFO     Eval (test year 2024, checkpoint farm-periodic-009): {'n':  
+                    105991550.0, 'mae': 4.346752166748047, 'rmse':              
+                    5.538538455963135, 'bias': 0.1951800137758255, 'r2':        
+                    0.7040615802403685, 'pearson_r': 0.8393413452565281,        
+                    'pearson_r2': 0.7044938938570384, 'pct_mae':                
+                    7.524063831081159}                                          
