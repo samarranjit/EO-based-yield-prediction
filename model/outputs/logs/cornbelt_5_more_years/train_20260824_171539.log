@@ -1,0 +1,703 @@
+warning: `VIRTUAL_ENV=/home/cholab/LabMembers/Samar/EO-based-yield-prediction/data_preparation/.venv` does not match the project environment path `.venv` and will be ignored; use `--active` to target the active environment instead
+[17:15:44] INFO     Fold: test=2024 val=[2023] train=[2014, 2015, 2016, 2017,   
+                    2018, 2019, 2020, 2021, 2022]                               
+[17:19:50] WARNING  Excluded 82 chip(s) via data.exclude_sample_ids:            
+                    soybeans_IN_2021_r2464_c3360, soybeans_IN_2021_r2464_c3584, 
+                    soybeans_IN_2022_r11648_c4928,                              
+                    soybeans_IN_2022_r11648_c5152, soybeans_MD_2015_r1120_c4256,
+                    soybeans_MD_2015_r1120_c4480, soybeans_MD_2015_r1120_c4704, 
+                    soybeans_MD_2015_r1120_c4928, soybeans_MD_2015_r1120_c5152, 
+                    soybeans_MD_2015_r1120_c5824, soybeans_MD_2015_r1120_c6048, 
+                    soybeans_MD_2015_r1120_c6272, soybeans_MD_2015_r1792_c6272, 
+                    soybeans_MD_2015_r1792_c6496, soybeans_MD_2015_r1792_c6944, 
+                    soybeans_MD_2015_r1792_c9408, soybeans_MD_2015_r1792_c9632, 
+                    soybeans_MD_2015_r1792_c9856, soybeans_MD_2015_r2016_c10304,
+                    soybeans_MD_2015_r2016_c10528,                              
+                    soybeans_MD_2015_r2016_c10752,                              
+                    soybeans_MD_2015_r2240_c10080,                              
+                    soybeans_MD_2015_r2240_c10304,                              
+                    soybeans_MD_2015_r2240_c10528,                              
+                    soybeans_MD_2015_r2240_c10752, soybeans_MD_2015_r2240_c5376,
+                    soybeans_MD_2015_r224_c9408, soybeans_MD_2015_r224_c9632,   
+                    soybeans_MD_2015_r4032_c10528,                              
+                    soybeans_MD_2015_r4032_c10752,                              
+                    soybeans_MD_2015_r4032_c10976,                              
+                    soybeans_MD_2015_r4032_c11200,                              
+                    soybeans_MD_2015_r4256_c10080,                              
+                    soybeans_MD_2015_r4256_c10528,                              
+                    soybeans_MD_2015_r4256_c10752,                              
+                    soybeans_MD_2015_r4256_c10976,                              
+                    soybeans_MD_2015_r4256_c12320,                              
+                    soybeans_MD_2015_r4256_c12768,                              
+                    soybeans_MD_2015_r4256_c12992, soybeans_MD_2015_r4256_c8288,
+                    soybeans_MD_2015_r4256_c9856, soybeans_MD_2015_r4480_c10080,
+                    soybeans_MD_2015_r4480_c10304,                              
+                    soybeans_MD_2015_r4480_c10528,                              
+                    soybeans_MD_2015_r4480_c10752,                              
+                    soybeans_MD_2015_r4480_c10976,                              
+                    soybeans_MD_2015_r4480_c11200,                              
+                    soybeans_MD_2015_r4480_c11424,                              
+                    soybeans_MD_2015_r4480_c11648,                              
+                    soybeans_MD_2015_r4480_c11872,                              
+                    soybeans_MD_2015_r4480_c12096,                              
+                    soybeans_MD_2015_r4480_c12320,                              
+                    soybeans_MD_2015_r4480_c12544,                              
+                    soybeans_MD_2015_r4480_c12768,                              
+                    soybeans_MD_2015_r4704_c11424,                              
+                    soybeans_MD_2015_r4704_c11648,                              
+                    soybeans_MD_2015_r4704_c11872,                              
+                    soybeans_MD_2015_r4704_c12096,                              
+                    soybeans_MD_2015_r4704_c12320,                              
+                    soybeans_MD_2015_r4704_c12544,                              
+                    soybeans_MD_2015_r4704_c12768,                              
+                    soybeans_MD_2015_r4704_c12992,                              
+                    soybeans_MD_2015_r5152_c12544,                              
+                    soybeans_MD_2015_r5152_c12768,                              
+                    soybeans_MD_2015_r5376_c11424,                              
+                    soybeans_MD_2015_r5376_c11648,                              
+                    soybeans_MD_2015_r5376_c12544, soybeans_MD_2015_r5376_c8512,
+                    soybeans_MD_2015_r672_c7840, soybeans_MD_2015_r672_c8064,   
+                    soybeans_MD_2015_r672_c8736, soybeans_MD_2015_r672_c8960,   
+                    soybeans_MD_2015_r896_c10080, soybeans_MD_2015_r896_c10304, 
+                    soybeans_MD_2015_r896_c6048, soybeans_MD_2015_r896_c6272,   
+                    soybeans_MD_2015_r896_c6496, soybeans_MD_2015_r896_c6720,   
+                    soybeans_MD_2015_r896_c6944, soybeans_MD_2015_r896_c7168,   
+                    soybeans_MD_2015_r896_c7392, soybeans_MD_2015_r896_c7616    
+           INFO     manifest QC: 120841/235889 chips have qualifying imagery    
+[17:19:52] WARNING  REUSING normalization stats from                            
+                    outputs/runs/cornbelt5_soybeans_longer_time/test2024/norm_st
+                    ats.json (train_years=[2014, 2015, 2016, 2017, 2018, 2019,  
+                    2020, 2021, 2022], n_chips_used=2000, seed=0) -- statistics 
+                    pass SKIPPED                                                
+[17:19:58] INFO     Building TerraTorch backbone 'prithvi_eo_v2_600_tl'         
+                    (pretrained=True)                                           
+[17:20:10] INFO     HTTP Request: HEAD                                          
+                    https://huggingface.co/ibm-nasa-geospatial/Prithvi-EO-2.0-60
+                    0M-TL/resolve/main/Prithvi_EO_V2_600M_TL.pt "HTTP/1.1 302   
+                    Found"                                                      
+Warning: You are sending unauthenticated requests to the HF Hub. Please set a HF_TOKEN to enable higher rate limits and faster downloads.
+           WARNING  Warning: You are sending unauthenticated requests to the HF 
+                    Hub. Please set a HF_TOKEN to enable higher rate limits and 
+                    faster downloads.                                           
+[17:20:18] INFO     Loaded weights for HLSBands.BLUE in position 0 of patch     
+                    embed                                                       
+           INFO     Loaded weights for HLSBands.GREEN in position 1 of patch    
+                    embed                                                       
+           INFO     Loaded weights for HLSBands.RED in position 2 of patch embed
+           INFO     Loaded weights for HLSBands.NIR_NARROW in position 3 of     
+                    patch embed                                                 
+           INFO     Loaded weights for HLSBands.SWIR_1 in position 4 of patch   
+                    embed                                                       
+           INFO     Loaded weights for HLSBands.SWIR_2 in position 5 of patch   
+                    embed                                                       
+INFO: Using 16bit Automatic Mixed Precision (AMP)
+[17:20:19] INFO     Using 16bit Automatic Mixed Precision (AMP)                 
+INFO: GPU available: True (cuda), used: True
+           INFO     GPU available: True (cuda), used: True                      
+INFO: TPU available: False, using: 0 TPU cores
+           INFO     TPU available: False, using: 0 TPU cores                    
+INFO: 💡 Tip: For seamless cloud logging and experiment tracking, try installing [litlogger](https://pypi.org/project/litlogger/) to enable LitLogger, which logs metrics and artifacts automatically to the Lightning Experiments platform.
+           INFO     💡 Tip: For seamless cloud logging and experiment tracking, 
+                    try installing                                              
+                    [litlogger](https://pypi.org/project/litlogger/) to enable  
+                    LitLogger, which logs metrics and artifacts automatically to
+                    the Lightning Experiments platform.                         
+INFO: `Trainer(limit_train_batches=1.0)` was configured so 100% of the batches per epoch will be used..
+           INFO     `Trainer(limit_train_batches=1.0)` was configured so 100% of
+                    the batches per epoch will be used..                        
+INFO: `Trainer(limit_val_batches=1.0)` was configured so 100% of the batches will be used..
+           INFO     `Trainer(limit_val_batches=1.0)` was configured so 100% of  
+                    the batches will be used..                                  
+INFO: LOCAL_RANK: 0 - CUDA_VISIBLE_DEVICES: [0]
+[17:20:20] INFO     LOCAL_RANK: 0 - CUDA_VISIBLE_DEVICES: [0]                   
+/home/cholab/LabMembers/Samar/EO-based-yield-prediction/model/.venv/lib/python3.11/site-packages/lightning/pytorch/utilities/model_summary/model_summary.py:242: Precision 16-mixed is not supported by the model summary.  Estimated model size in MB will not be accurate. Using 32 bits instead.
+┏━━━┳━━━━━━━┳━━━━━━━━━━━┳━━━━━━━━┳━━━━━━━┳━━━━━━━┓
+┃   ┃ Name  ┃ Type      ┃ Params ┃ Mode  ┃ FLOPs ┃
+┡━━━╇━━━━━━━╇━━━━━━━━━━━╇━━━━━━━━╇━━━━━━━╇━━━━━━━┩
+│ 0 │ model │ FarmModel │  775 M │ train │     0 │
+└───┴───────┴───────────┴────────┴───────┴───────┘
+Trainable params: 143 M                                                         
+Non-trainable params: 631 M                                                     
+Total params: 775 M                                                             
+Total estimated model params size (MB): 3,100.618                               
+Modules in train mode: 838                                                      
+Modules in eval mode: 0                                                         
+Total FLOPs: 0                                                                  
+/home/cholab/LabMembers/Samar/EO-based-yield-prediction/model/.venv/lib/python3.11/site-packages/lightning/pytorch/utilities/_pytree.py:21: `isinstance(treespec, LeafSpec)` is deprecated, use `isinstance(treespec, TreeSpec) and treespec.is_leaf()` instead.
+[17:33:26] INFO     GDAL signalled an error: err_no=1, msg='ZIPDecode:Decoding  
+                    error at scanline 6272'                                     
+           INFO     GDAL signalled an error: err_no=1,                          
+                    msg='TIFFReadEncodedTile() failed.'                         
+[17:33:27] INFO     GDAL signalled an error: err_no=1,                          
+                    msg='hls_soybeans_MD_2015_MAY.tif, band 1: IReadBlock failed
+                    at X offset 28, Y offset 8: TIFFReadEncodedTile() failed.'  
+           WARNING  Corrupted read in hls_soybeans_MD_2015_MAY.tif (MAY,        
+                    state=MD year=2015 window=row1792_col6048): Read failed. See
+                    previous exception for details. -- treating this month as   
+                    missing                                                     
+[17:50:14] INFO     GDAL signalled an error: err_no=1, msg='ZIPDecode:Decoding  
+                    error at scanline 10304'                                    
+           INFO     GDAL signalled an error: err_no=1,                          
+                    msg='TIFFReadEncodedTile() failed.'                         
+           INFO     GDAL signalled an error: err_no=1,                          
+                    msg='hls_soybeans_MD_2015_MAY.tif, band 1: IReadBlock failed
+                    at X offset 46, Y offset 9: TIFFReadEncodedTile() failed.'  
+           WARNING  Corrupted read in hls_soybeans_MD_2015_MAY.tif (MAY,        
+                    state=MD year=2015 window=row2016_col10080): Read failed.   
+                    See previous exception for details. -- treating this month  
+                    as missing                                                  
+[21:10:56] INFO     GDAL signalled an error: err_no=1, msg='ZIPDecode:Decoding  
+                    error at scanline 10528'                                    
+           INFO     GDAL signalled an error: err_no=1,                          
+                    msg='TIFFReadEncodedTile() failed.'                         
+           INFO     GDAL signalled an error: err_no=1,                          
+                    msg='hls_soybeans_MD_2015_MAY.tif, band 1: IReadBlock failed
+                    at X offset 47, Y offset 18: TIFFReadEncodedTile() failed.' 
+           WARNING  Corrupted read in hls_soybeans_MD_2015_MAY.tif (MAY,        
+                    state=MD year=2015 window=row4032_col10304): Read failed.   
+                    See previous exception for details. -- treating this month  
+                    as missing                                                  
+[22:05:22] INFO     GDAL signalled an error: err_no=1, msg='ZIPDecode:Decoding  
+                    error at scanline 12544'                                    
+           INFO     GDAL signalled an error: err_no=1,                          
+                    msg='TIFFReadEncodedTile() failed.'                         
+           INFO     GDAL signalled an error: err_no=1,                          
+                    msg='hls_soybeans_MD_2015_MAY.tif, band 1: IReadBlock failed
+                    at X offset 56, Y offset 23: TIFFReadEncodedTile() failed.' 
+           WARNING  Corrupted read in hls_soybeans_MD_2015_MAY.tif (MAY,        
+                    state=MD year=2015 window=row5152_col12320): Read failed.   
+                    See previous exception for details. -- treating this month  
+                    as missing                                                  
+[00:09:50] INFO     GDAL signalled an error: err_no=1, msg='ZIPDecode:Decoding  
+                    error at scanline 10080'                                    
+           INFO     GDAL signalled an error: err_no=1,                          
+                    msg='TIFFReadEncodedTile() failed.'                         
+           INFO     GDAL signalled an error: err_no=1,                          
+                    msg='hls_soybeans_MD_2015_MAY.tif, band 1: IReadBlock failed
+                    at X offset 45, Y offset 10: TIFFReadEncodedTile() failed.' 
+           WARNING  Corrupted read in hls_soybeans_MD_2015_MAY.tif (MAY,        
+                    state=MD year=2015 window=row2240_col9856): Read failed. See
+                    previous exception for details. -- treating this month as   
+                    missing                                                     
+[01:32:47] INFO     GDAL signalled an error: err_no=1, msg='ZIPDecode:Decoding  
+                    error at scanline 10304'                                    
+           INFO     GDAL signalled an error: err_no=1,                          
+                    msg='TIFFReadEncodedTile() failed.'                         
+           INFO     GDAL signalled an error: err_no=1,                          
+                    msg='hls_soybeans_MD_2015_MAY.tif, band 1: IReadBlock failed
+                    at X offset 46, Y offset 9: TIFFReadEncodedTile() failed.'  
+           WARNING  Corrupted read in hls_soybeans_MD_2015_MAY.tif (MAY,        
+                    state=MD year=2015 window=row2016_col10080): Read failed.   
+                    See previous exception for details. -- treating this month  
+                    as missing                                                  
+[01:44:55] INFO     GDAL signalled an error: err_no=1, msg='ZIPDecode:Decoding  
+                    error at scanline 10528'                                    
+           INFO     GDAL signalled an error: err_no=1,                          
+                    msg='TIFFReadEncodedTile() failed.'                         
+           INFO     GDAL signalled an error: err_no=1,                          
+                    msg='hls_soybeans_MD_2015_MAY.tif, band 1: IReadBlock failed
+                    at X offset 47, Y offset 18: TIFFReadEncodedTile() failed.' 
+           WARNING  Corrupted read in hls_soybeans_MD_2015_MAY.tif (MAY,        
+                    state=MD year=2015 window=row4032_col10304): Read failed.   
+                    See previous exception for details. -- treating this month  
+                    as missing                                                  
+[02:15:23] INFO     GDAL signalled an error: err_no=1, msg='ZIPDecode:Decoding  
+                    error at scanline 10080'                                    
+           INFO     GDAL signalled an error: err_no=1,                          
+                    msg='TIFFReadEncodedTile() failed.'                         
+           INFO     GDAL signalled an error: err_no=1,                          
+                    msg='hls_soybeans_MD_2015_MAY.tif, band 1: IReadBlock failed
+                    at X offset 45, Y offset 10: TIFFReadEncodedTile() failed.' 
+           WARNING  Corrupted read in hls_soybeans_MD_2015_MAY.tif (MAY,        
+                    state=MD year=2015 window=row2240_col9856): Read failed. See
+                    previous exception for details. -- treating this month as   
+                    missing                                                     
+[03:26:18] INFO     GDAL signalled an error: err_no=1, msg='ZIPDecode:Decoding  
+                    error at scanline 12544'                                    
+           INFO     GDAL signalled an error: err_no=1,                          
+                    msg='TIFFReadEncodedTile() failed.'                         
+           INFO     GDAL signalled an error: err_no=1,                          
+                    msg='hls_soybeans_MD_2015_MAY.tif, band 1: IReadBlock failed
+                    at X offset 56, Y offset 23: TIFFReadEncodedTile() failed.' 
+           WARNING  Corrupted read in hls_soybeans_MD_2015_MAY.tif (MAY,        
+                    state=MD year=2015 window=row5152_col12320): Read failed.   
+                    See previous exception for details. -- treating this month  
+                    as missing                                                  
+[07:01:13] INFO     GDAL signalled an error: err_no=1, msg='ZIPDecode:Decoding  
+                    error at scanline 6272'                                     
+           INFO     GDAL signalled an error: err_no=1,                          
+                    msg='TIFFReadEncodedTile() failed.'                         
+           INFO     GDAL signalled an error: err_no=1,                          
+                    msg='hls_soybeans_MD_2015_MAY.tif, band 1: IReadBlock failed
+                    at X offset 28, Y offset 8: TIFFReadEncodedTile() failed.'  
+           WARNING  Corrupted read in hls_soybeans_MD_2015_MAY.tif (MAY,        
+                    state=MD year=2015 window=row1792_col6048): Read failed. See
+                    previous exception for details. -- treating this month as   
+                    missing                                                     
+[09:04:50] INFO     GDAL signalled an error: err_no=1, msg='ZIPDecode:Decoding  
+                    error at scanline 10528'                                    
+           INFO     GDAL signalled an error: err_no=1,                          
+                    msg='TIFFReadEncodedTile() failed.'                         
+           INFO     GDAL signalled an error: err_no=1,                          
+                    msg='hls_soybeans_MD_2015_MAY.tif, band 1: IReadBlock failed
+                    at X offset 47, Y offset 18: TIFFReadEncodedTile() failed.' 
+           WARNING  Corrupted read in hls_soybeans_MD_2015_MAY.tif (MAY,        
+                    state=MD year=2015 window=row4032_col10304): Read failed.   
+                    See previous exception for details. -- treating this month  
+                    as missing                                                  
+[09:25:52] INFO     GDAL signalled an error: err_no=1, msg='ZIPDecode:Decoding  
+                    error at scanline 12544'                                    
+           INFO     GDAL signalled an error: err_no=1,                          
+                    msg='TIFFReadEncodedTile() failed.'                         
+           INFO     GDAL signalled an error: err_no=1,                          
+                    msg='hls_soybeans_MD_2015_MAY.tif, band 1: IReadBlock failed
+                    at X offset 56, Y offset 23: TIFFReadEncodedTile() failed.' 
+           WARNING  Corrupted read in hls_soybeans_MD_2015_MAY.tif (MAY,        
+                    state=MD year=2015 window=row5152_col12320): Read failed.   
+                    See previous exception for details. -- treating this month  
+                    as missing                                                  
+[10:32:45] INFO     GDAL signalled an error: err_no=1, msg='ZIPDecode:Decoding  
+                    error at scanline 10080'                                    
+           INFO     GDAL signalled an error: err_no=1,                          
+                    msg='TIFFReadEncodedTile() failed.'                         
+           INFO     GDAL signalled an error: err_no=1,                          
+                    msg='hls_soybeans_MD_2015_MAY.tif, band 1: IReadBlock failed
+                    at X offset 45, Y offset 10: TIFFReadEncodedTile() failed.' 
+           WARNING  Corrupted read in hls_soybeans_MD_2015_MAY.tif (MAY,        
+                    state=MD year=2015 window=row2240_col9856): Read failed. See
+                    previous exception for details. -- treating this month as   
+                    missing                                                     
+[11:29:55] INFO     GDAL signalled an error: err_no=1, msg='ZIPDecode:Decoding  
+                    error at scanline 10304'                                    
+[11:29:56] INFO     GDAL signalled an error: err_no=1,                          
+                    msg='TIFFReadEncodedTile() failed.'                         
+           INFO     GDAL signalled an error: err_no=1,                          
+                    msg='hls_soybeans_MD_2015_MAY.tif, band 1: IReadBlock failed
+                    at X offset 46, Y offset 9: TIFFReadEncodedTile() failed.'  
+           WARNING  Corrupted read in hls_soybeans_MD_2015_MAY.tif (MAY,        
+                    state=MD year=2015 window=row2016_col10080): Read failed.   
+                    See previous exception for details. -- treating this month  
+                    as missing                                                  
+[13:15:48] INFO     GDAL signalled an error: err_no=1, msg='ZIPDecode:Decoding  
+                    error at scanline 6272'                                     
+           INFO     GDAL signalled an error: err_no=1,                          
+                    msg='TIFFReadEncodedTile() failed.'                         
+           INFO     GDAL signalled an error: err_no=1,                          
+                    msg='hls_soybeans_MD_2015_MAY.tif, band 1: IReadBlock failed
+                    at X offset 28, Y offset 8: TIFFReadEncodedTile() failed.'  
+           WARNING  Corrupted read in hls_soybeans_MD_2015_MAY.tif (MAY,        
+                    state=MD year=2015 window=row1792_col6048): Read failed. See
+                    previous exception for details. -- treating this month as   
+                    missing                                                     
+[14:50:37] INFO     GDAL signalled an error: err_no=1, msg='ZIPDecode:Decoding  
+                    error at scanline 10304'                                    
+           INFO     GDAL signalled an error: err_no=1,                          
+                    msg='TIFFReadEncodedTile() failed.'                         
+           INFO     GDAL signalled an error: err_no=1,                          
+                    msg='hls_soybeans_MD_2015_MAY.tif, band 1: IReadBlock failed
+                    at X offset 46, Y offset 9: TIFFReadEncodedTile() failed.'  
+           WARNING  Corrupted read in hls_soybeans_MD_2015_MAY.tif (MAY,        
+                    state=MD year=2015 window=row2016_col10080): Read failed.   
+                    See previous exception for details. -- treating this month  
+                    as missing                                                  
+[15:31:26] INFO     GDAL signalled an error: err_no=1, msg='ZIPDecode:Decoding  
+                    error at scanline 6272'                                     
+           INFO     GDAL signalled an error: err_no=1,                          
+                    msg='TIFFReadEncodedTile() failed.'                         
+           INFO     GDAL signalled an error: err_no=1,                          
+                    msg='hls_soybeans_MD_2015_MAY.tif, band 1: IReadBlock failed
+                    at X offset 28, Y offset 8: TIFFReadEncodedTile() failed.'  
+           WARNING  Corrupted read in hls_soybeans_MD_2015_MAY.tif (MAY,        
+                    state=MD year=2015 window=row1792_col6048): Read failed. See
+                    previous exception for details. -- treating this month as   
+                    missing                                                     
+[15:35:49] INFO     GDAL signalled an error: err_no=1, msg='ZIPDecode:Decoding  
+                    error at scanline 10528'                                    
+           INFO     GDAL signalled an error: err_no=1,                          
+                    msg='TIFFReadEncodedTile() failed.'                         
+           INFO     GDAL signalled an error: err_no=1,                          
+                    msg='hls_soybeans_MD_2015_MAY.tif, band 1: IReadBlock failed
+                    at X offset 47, Y offset 18: TIFFReadEncodedTile() failed.' 
+           WARNING  Corrupted read in hls_soybeans_MD_2015_MAY.tif (MAY,        
+                    state=MD year=2015 window=row4032_col10304): Read failed.   
+                    See previous exception for details. -- treating this month  
+                    as missing                                                  
+[17:29:03] INFO     GDAL signalled an error: err_no=1, msg='ZIPDecode:Decoding  
+                    error at scanline 10080'                                    
+           INFO     GDAL signalled an error: err_no=1,                          
+                    msg='TIFFReadEncodedTile() failed.'                         
+[17:29:04] INFO     GDAL signalled an error: err_no=1,                          
+                    msg='hls_soybeans_MD_2015_MAY.tif, band 1: IReadBlock failed
+                    at X offset 45, Y offset 10: TIFFReadEncodedTile() failed.' 
+           WARNING  Corrupted read in hls_soybeans_MD_2015_MAY.tif (MAY,        
+                    state=MD year=2015 window=row2240_col9856): Read failed. See
+                    previous exception for details. -- treating this month as   
+                    missing                                                     
+[18:52:17] INFO     GDAL signalled an error: err_no=1, msg='ZIPDecode:Decoding  
+                    error at scanline 12544'                                    
+           INFO     GDAL signalled an error: err_no=1,                          
+                    msg='TIFFReadEncodedTile() failed.'                         
+           INFO     GDAL signalled an error: err_no=1,                          
+                    msg='hls_soybeans_MD_2015_MAY.tif, band 1: IReadBlock failed
+                    at X offset 56, Y offset 23: TIFFReadEncodedTile() failed.' 
+           WARNING  Corrupted read in hls_soybeans_MD_2015_MAY.tif (MAY,        
+                    state=MD year=2015 window=row5152_col12320): Read failed.   
+                    See previous exception for details. -- treating this month  
+                    as missing                                                  
+[21:53:56] INFO     GDAL signalled an error: err_no=1, msg='ZIPDecode:Decoding  
+                    error at scanline 10528'                                    
+           INFO     GDAL signalled an error: err_no=1,                          
+                    msg='TIFFReadEncodedTile() failed.'                         
+           INFO     GDAL signalled an error: err_no=1,                          
+                    msg='hls_soybeans_MD_2015_MAY.tif, band 1: IReadBlock failed
+                    at X offset 47, Y offset 18: TIFFReadEncodedTile() failed.' 
+           WARNING  Corrupted read in hls_soybeans_MD_2015_MAY.tif (MAY,        
+                    state=MD year=2015 window=row4032_col10304): Read failed.   
+                    See previous exception for details. -- treating this month  
+                    as missing                                                  
+[23:23:04] INFO     GDAL signalled an error: err_no=1, msg='ZIPDecode:Decoding  
+                    error at scanline 6272'                                     
+           INFO     GDAL signalled an error: err_no=1,                          
+                    msg='TIFFReadEncodedTile() failed.'                         
+           INFO     GDAL signalled an error: err_no=1,                          
+                    msg='hls_soybeans_MD_2015_MAY.tif, band 1: IReadBlock failed
+                    at X offset 28, Y offset 8: TIFFReadEncodedTile() failed.'  
+           WARNING  Corrupted read in hls_soybeans_MD_2015_MAY.tif (MAY,        
+                    state=MD year=2015 window=row1792_col6048): Read failed. See
+                    previous exception for details. -- treating this month as   
+                    missing                                                     
+[23:33:11] INFO     GDAL signalled an error: err_no=1, msg='ZIPDecode:Decoding  
+                    error at scanline 10080'                                    
+           INFO     GDAL signalled an error: err_no=1,                          
+                    msg='TIFFReadEncodedTile() failed.'                         
+           INFO     GDAL signalled an error: err_no=1,                          
+                    msg='hls_soybeans_MD_2015_MAY.tif, band 1: IReadBlock failed
+                    at X offset 45, Y offset 10: TIFFReadEncodedTile() failed.' 
+           WARNING  Corrupted read in hls_soybeans_MD_2015_MAY.tif (MAY,        
+                    state=MD year=2015 window=row2240_col9856): Read failed. See
+                    previous exception for details. -- treating this month as   
+                    missing                                                     
+[00:56:39] INFO     GDAL signalled an error: err_no=1, msg='ZIPDecode:Decoding  
+                    error at scanline 10304'                                    
+           INFO     GDAL signalled an error: err_no=1,                          
+                    msg='TIFFReadEncodedTile() failed.'                         
+           INFO     GDAL signalled an error: err_no=1,                          
+                    msg='hls_soybeans_MD_2015_MAY.tif, band 1: IReadBlock failed
+                    at X offset 46, Y offset 9: TIFFReadEncodedTile() failed.'  
+           WARNING  Corrupted read in hls_soybeans_MD_2015_MAY.tif (MAY,        
+                    state=MD year=2015 window=row2016_col10080): Read failed.   
+                    See previous exception for details. -- treating this month  
+                    as missing                                                  
+[01:02:25] INFO     GDAL signalled an error: err_no=1, msg='ZIPDecode:Decoding  
+                    error at scanline 12544'                                    
+           INFO     GDAL signalled an error: err_no=1,                          
+                    msg='TIFFReadEncodedTile() failed.'                         
+           INFO     GDAL signalled an error: err_no=1,                          
+                    msg='hls_soybeans_MD_2015_MAY.tif, band 1: IReadBlock failed
+                    at X offset 56, Y offset 23: TIFFReadEncodedTile() failed.' 
+           WARNING  Corrupted read in hls_soybeans_MD_2015_MAY.tif (MAY,        
+                    state=MD year=2015 window=row5152_col12320): Read failed.   
+                    See previous exception for details. -- treating this month  
+                    as missing                                                  
+[03:12:08] INFO     GDAL signalled an error: err_no=1, msg='ZIPDecode:Decoding  
+                    error at scanline 6272'                                     
+           INFO     GDAL signalled an error: err_no=1,                          
+                    msg='TIFFReadEncodedTile() failed.'                         
+           INFO     GDAL signalled an error: err_no=1,                          
+                    msg='hls_soybeans_MD_2015_MAY.tif, band 1: IReadBlock failed
+                    at X offset 28, Y offset 8: TIFFReadEncodedTile() failed.'  
+           WARNING  Corrupted read in hls_soybeans_MD_2015_MAY.tif (MAY,        
+                    state=MD year=2015 window=row1792_col6048): Read failed. See
+                    previous exception for details. -- treating this month as   
+                    missing                                                     
+[03:26:27] INFO     GDAL signalled an error: err_no=1, msg='ZIPDecode:Decoding  
+                    error at scanline 10080'                                    
+           INFO     GDAL signalled an error: err_no=1,                          
+                    msg='TIFFReadEncodedTile() failed.'                         
+           INFO     GDAL signalled an error: err_no=1,                          
+                    msg='hls_soybeans_MD_2015_MAY.tif, band 1: IReadBlock failed
+                    at X offset 45, Y offset 10: TIFFReadEncodedTile() failed.' 
+           WARNING  Corrupted read in hls_soybeans_MD_2015_MAY.tif (MAY,        
+                    state=MD year=2015 window=row2240_col9856): Read failed. See
+                    previous exception for details. -- treating this month as   
+                    missing                                                     
+[03:39:29] INFO     GDAL signalled an error: err_no=1, msg='ZIPDecode:Decoding  
+                    error at scanline 12544'                                    
+           INFO     GDAL signalled an error: err_no=1,                          
+                    msg='TIFFReadEncodedTile() failed.'                         
+           INFO     GDAL signalled an error: err_no=1,                          
+                    msg='hls_soybeans_MD_2015_MAY.tif, band 1: IReadBlock failed
+                    at X offset 56, Y offset 23: TIFFReadEncodedTile() failed.' 
+           WARNING  Corrupted read in hls_soybeans_MD_2015_MAY.tif (MAY,        
+                    state=MD year=2015 window=row5152_col12320): Read failed.   
+                    See previous exception for details. -- treating this month  
+                    as missing                                                  
+[03:59:15] INFO     GDAL signalled an error: err_no=1, msg='ZIPDecode:Decoding  
+                    error at scanline 10304'                                    
+           INFO     GDAL signalled an error: err_no=1,                          
+                    msg='TIFFReadEncodedTile() failed.'                         
+           INFO     GDAL signalled an error: err_no=1,                          
+                    msg='hls_soybeans_MD_2015_MAY.tif, band 1: IReadBlock failed
+                    at X offset 46, Y offset 9: TIFFReadEncodedTile() failed.'  
+           WARNING  Corrupted read in hls_soybeans_MD_2015_MAY.tif (MAY,        
+                    state=MD year=2015 window=row2016_col10080): Read failed.   
+                    See previous exception for details. -- treating this month  
+                    as missing                                                  
+[06:41:58] INFO     GDAL signalled an error: err_no=1, msg='ZIPDecode:Decoding  
+                    error at scanline 10528'                                    
+           INFO     GDAL signalled an error: err_no=1,                          
+                    msg='TIFFReadEncodedTile() failed.'                         
+           INFO     GDAL signalled an error: err_no=1,                          
+                    msg='hls_soybeans_MD_2015_MAY.tif, band 1: IReadBlock failed
+                    at X offset 47, Y offset 18: TIFFReadEncodedTile() failed.' 
+           WARNING  Corrupted read in hls_soybeans_MD_2015_MAY.tif (MAY,        
+                    state=MD year=2015 window=row4032_col10304): Read failed.   
+                    See previous exception for details. -- treating this month  
+                    as missing                                                  
+[08:52:59] INFO     GDAL signalled an error: err_no=1, msg='ZIPDecode:Decoding  
+                    error at scanline 10304'                                    
+           INFO     GDAL signalled an error: err_no=1,                          
+                    msg='TIFFReadEncodedTile() failed.'                         
+           INFO     GDAL signalled an error: err_no=1,                          
+                    msg='hls_soybeans_MD_2015_MAY.tif, band 1: IReadBlock failed
+                    at X offset 46, Y offset 9: TIFFReadEncodedTile() failed.'  
+           WARNING  Corrupted read in hls_soybeans_MD_2015_MAY.tif (MAY,        
+                    state=MD year=2015 window=row2016_col10080): Read failed.   
+                    See previous exception for details. -- treating this month  
+                    as missing                                                  
+[11:51:38] INFO     GDAL signalled an error: err_no=1, msg='ZIPDecode:Decoding  
+                    error at scanline 10080'                                    
+           INFO     GDAL signalled an error: err_no=1,                          
+                    msg='TIFFReadEncodedTile() failed.'                         
+           INFO     GDAL signalled an error: err_no=1,                          
+                    msg='hls_soybeans_MD_2015_MAY.tif, band 1: IReadBlock failed
+                    at X offset 45, Y offset 10: TIFFReadEncodedTile() failed.' 
+           WARNING  Corrupted read in hls_soybeans_MD_2015_MAY.tif (MAY,        
+                    state=MD year=2015 window=row2240_col9856): Read failed. See
+                    previous exception for details. -- treating this month as   
+                    missing                                                     
+[12:12:42] INFO     GDAL signalled an error: err_no=1, msg='ZIPDecode:Decoding  
+                    error at scanline 6272'                                     
+           INFO     GDAL signalled an error: err_no=1,                          
+                    msg='TIFFReadEncodedTile() failed.'                         
+           INFO     GDAL signalled an error: err_no=1,                          
+                    msg='hls_soybeans_MD_2015_MAY.tif, band 1: IReadBlock failed
+                    at X offset 28, Y offset 8: TIFFReadEncodedTile() failed.'  
+           WARNING  Corrupted read in hls_soybeans_MD_2015_MAY.tif (MAY,        
+                    state=MD year=2015 window=row1792_col6048): Read failed. See
+                    previous exception for details. -- treating this month as   
+                    missing                                                     
+[12:20:01] INFO     GDAL signalled an error: err_no=1, msg='ZIPDecode:Decoding  
+                    error at scanline 12544'                                    
+           INFO     GDAL signalled an error: err_no=1,                          
+                    msg='TIFFReadEncodedTile() failed.'                         
+           INFO     GDAL signalled an error: err_no=1,                          
+                    msg='hls_soybeans_MD_2015_MAY.tif, band 1: IReadBlock failed
+                    at X offset 56, Y offset 23: TIFFReadEncodedTile() failed.' 
+           WARNING  Corrupted read in hls_soybeans_MD_2015_MAY.tif (MAY,        
+                    state=MD year=2015 window=row5152_col12320): Read failed.   
+                    See previous exception for details. -- treating this month  
+                    as missing                                                  
+[12:53:55] INFO     GDAL signalled an error: err_no=1, msg='ZIPDecode:Decoding  
+                    error at scanline 10528'                                    
+           INFO     GDAL signalled an error: err_no=1,                          
+                    msg='TIFFReadEncodedTile() failed.'                         
+           INFO     GDAL signalled an error: err_no=1,                          
+                    msg='hls_soybeans_MD_2015_MAY.tif, band 1: IReadBlock failed
+                    at X offset 47, Y offset 18: TIFFReadEncodedTile() failed.' 
+           WARNING  Corrupted read in hls_soybeans_MD_2015_MAY.tif (MAY,        
+                    state=MD year=2015 window=row4032_col10304): Read failed.   
+                    See previous exception for details. -- treating this month  
+                    as missing                                                  
+INFO: [rank: 0] Received SIGTERM: 15
+--- Logging error ---
+Traceback (most recent call last):
+  File "/home/cholab/LabMembers/Samar/EO-based-yield-prediction/model/.venv/lib/python3.11/site-packages/rich/logging.py", line 186, in emit
+    self.console.print(log_renderable)
+  File "/home/cholab/LabMembers/Samar/EO-based-yield-prediction/model/.venv/lib/python3.11/site-packages/rich/console.py", line 1731, in print
+    extend(render(renderable, render_options))
+  File "/home/cholab/LabMembers/Samar/EO-based-yield-prediction/model/.venv/lib/python3.11/site-packages/rich/console.py", line 1339, in render
+    for render_output in iter_render:
+  File "/home/cholab/LabMembers/Samar/EO-based-yield-prediction/model/.venv/lib/python3.11/site-packages/rich/table.py", line 488, in __rich_console__
+    widths = self._calculate_column_widths(
+             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/cholab/LabMembers/Samar/EO-based-yield-prediction/model/.venv/lib/python3.11/site-packages/rich/table.py", line 529, in _calculate_column_widths
+    width_ranges = [
+                   ^
+  File "/home/cholab/LabMembers/Samar/EO-based-yield-prediction/model/.venv/lib/python3.11/site-packages/rich/table.py", line 530, in <listcomp>
+    self._measure_column(console, options, column) for column in columns
+    ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/cholab/LabMembers/Samar/EO-based-yield-prediction/model/.venv/lib/python3.11/site-packages/rich/table.py", line 741, in _measure_column
+    _min, _max = get_render_width(console, options, cell.renderable)
+                 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/cholab/LabMembers/Samar/EO-based-yield-prediction/model/.venv/lib/python3.11/site-packages/rich/measure.py", line 109, in get
+    get_console_width(console, options)
+  File "/home/cholab/LabMembers/Samar/EO-based-yield-prediction/model/.venv/lib/python3.11/site-packages/rich/padding.py", line 132, in __rich_measure__
+    measure_min, measure_max = Measurement.get(console, options, self.renderable)
+                               ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/cholab/LabMembers/Samar/EO-based-yield-prediction/model/.venv/lib/python3.11/site-packages/rich/measure.py", line 109, in get
+    get_console_width(console, options)
+  File "/home/cholab/LabMembers/Samar/EO-based-yield-prediction/model/.venv/lib/python3.11/site-packages/rich/text.py", line 712, in __rich_measure__
+    max_text_width = max(cell_len(line) for line in lines) if lines else 0
+                     ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/cholab/LabMembers/Samar/EO-based-yield-prediction/model/.venv/lib/python3.11/site-packages/rich/text.py", line 712, in <genexpr>
+    max_text_width = max(cell_len(line) for line in lines) if lines else 0
+                         ^^^^^^^^^^^^^^
+  File "/home/cholab/LabMembers/Samar/EO-based-yield-prediction/model/.venv/lib/python3.11/site-packages/rich/cells.py", line 109, in cell_len
+    return cached_cell_len(text, unicode_version)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/cholab/LabMembers/Samar/EO-based-yield-prediction/model/.venv/lib/python3.11/site-packages/rich/cells.py", line 95, in cached_cell_len
+    return _cell_len(text, unicode_version)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/cholab/LabMembers/Samar/EO-based-yield-prediction/model/.venv/lib/python3.11/site-packages/rich/cells.py", line 124, in _cell_len
+    if _is_single_cell_widths(text):
+       ^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/cholab/LabMembers/Samar/EO-based-yield-prediction/model/.venv/lib/python3.11/site-packages/torch/utils/data/_utils/signal_handling.py", line 73, in handler
+    _error_if_any_worker_fails()
+RuntimeError: DataLoader worker (pid 1390397) is killed by signal: Terminated. 
+Call stack:
+  File "<frozen runpy>", line 198, in _run_module_as_main
+  File "<frozen runpy>", line 88, in _run_code
+  File "/home/cholab/LabMembers/Samar/EO-based-yield-prediction/model/src/farm_us/cli.py", line 282, in <module>
+    main()
+  File "/home/cholab/LabMembers/Samar/EO-based-yield-prediction/model/src/farm_us/cli.py", line 278, in main
+    COMMANDS[args.command](args)
+  File "/home/cholab/LabMembers/Samar/EO-based-yield-prediction/model/src/farm_us/cli.py", line 219, in cmd_train
+    train_fold(_cfg(args), use_dummy="--real" not in sys.argv, resume_from=resume_from)
+  File "/home/cholab/LabMembers/Samar/EO-based-yield-prediction/model/src/farm_us/training/run.py", line 211, in train_fold
+    trainer.fit(lm, dm.train_dataloader(), dm.val_dataloader(), ckpt_path=resume_from) # This is the most important line in this function, it runs the training loop using the Lightning trainer, model, and data module.
+  File "/home/cholab/LabMembers/Samar/EO-based-yield-prediction/model/.venv/lib/python3.11/site-packages/lightning/pytorch/trainer/trainer.py", line 584, in fit
+    call._call_and_handle_interrupt(
+  File "/home/cholab/LabMembers/Samar/EO-based-yield-prediction/model/.venv/lib/python3.11/site-packages/lightning/pytorch/trainer/call.py", line 49, in _call_and_handle_interrupt
+    return trainer_fn(*args, **kwargs)
+  File "/home/cholab/LabMembers/Samar/EO-based-yield-prediction/model/.venv/lib/python3.11/site-packages/lightning/pytorch/trainer/trainer.py", line 630, in _fit_impl
+    self._run(model, ckpt_path=ckpt_path, weights_only=weights_only)
+  File "/home/cholab/LabMembers/Samar/EO-based-yield-prediction/model/.venv/lib/python3.11/site-packages/lightning/pytorch/trainer/trainer.py", line 1079, in _run
+    results = self._run_stage()
+  File "/home/cholab/LabMembers/Samar/EO-based-yield-prediction/model/.venv/lib/python3.11/site-packages/lightning/pytorch/trainer/trainer.py", line 1123, in _run_stage
+    self.fit_loop.run()
+  File "/home/cholab/LabMembers/Samar/EO-based-yield-prediction/model/.venv/lib/python3.11/site-packages/lightning/pytorch/loops/fit_loop.py", line 217, in run
+    self.advance()
+  File "/home/cholab/LabMembers/Samar/EO-based-yield-prediction/model/.venv/lib/python3.11/site-packages/lightning/pytorch/loops/fit_loop.py", line 469, in advance
+    self.epoch_loop.run(self._data_fetcher)
+  File "/home/cholab/LabMembers/Samar/EO-based-yield-prediction/model/.venv/lib/python3.11/site-packages/lightning/pytorch/loops/training_epoch_loop.py", line 153, in run
+    self.advance(data_fetcher)
+  File "/home/cholab/LabMembers/Samar/EO-based-yield-prediction/model/.venv/lib/python3.11/site-packages/lightning/pytorch/loops/training_epoch_loop.py", line 352, in advance
+    batch_output = self.automatic_optimization.run(trainer.optimizers[0], batch_idx, kwargs)
+  File "/home/cholab/LabMembers/Samar/EO-based-yield-prediction/model/.venv/lib/python3.11/site-packages/lightning/pytorch/loops/optimization/automatic.py", line 192, in run
+    self._optimizer_step(batch_idx, closure)
+  File "/home/cholab/LabMembers/Samar/EO-based-yield-prediction/model/.venv/lib/python3.11/site-packages/lightning/pytorch/loops/optimization/automatic.py", line 270, in _optimizer_step
+    call._call_lightning_module_hook(
+  File "/home/cholab/LabMembers/Samar/EO-based-yield-prediction/model/.venv/lib/python3.11/site-packages/lightning/pytorch/trainer/call.py", line 177, in _call_lightning_module_hook
+    output = fn(*args, **kwargs)
+  File "/home/cholab/LabMembers/Samar/EO-based-yield-prediction/model/.venv/lib/python3.11/site-packages/lightning/pytorch/core/module.py", line 1368, in optimizer_step
+    optimizer.step(closure=optimizer_closure)
+  File "/home/cholab/LabMembers/Samar/EO-based-yield-prediction/model/.venv/lib/python3.11/site-packages/lightning/pytorch/core/optimizer.py", line 154, in step
+    step_output = self._strategy.optimizer_step(self._optimizer, closure, **kwargs)
+  File "/home/cholab/LabMembers/Samar/EO-based-yield-prediction/model/.venv/lib/python3.11/site-packages/lightning/pytorch/strategies/strategy.py", line 239, in optimizer_step
+    return self.precision_plugin.optimizer_step(optimizer, model=model, closure=closure, **kwargs)
+  File "/home/cholab/LabMembers/Samar/EO-based-yield-prediction/model/.venv/lib/python3.11/site-packages/lightning/pytorch/plugins/precision/amp.py", line 79, in optimizer_step
+    closure_result = closure()
+  File "/home/cholab/LabMembers/Samar/EO-based-yield-prediction/model/.venv/lib/python3.11/site-packages/lightning/pytorch/loops/optimization/automatic.py", line 146, in __call__
+    self._result = self.closure(*args, **kwargs)
+  File "/home/cholab/LabMembers/Samar/EO-based-yield-prediction/model/.venv/lib/python3.11/site-packages/torch/utils/_contextlib.py", line 124, in decorate_context
+    return func(*args, **kwargs)
+  File "/home/cholab/LabMembers/Samar/EO-based-yield-prediction/model/.venv/lib/python3.11/site-packages/lightning/pytorch/loops/optimization/automatic.py", line 131, in closure
+    step_output = self._step_fn()
+  File "/home/cholab/LabMembers/Samar/EO-based-yield-prediction/model/.venv/lib/python3.11/site-packages/lightning/pytorch/loops/optimization/automatic.py", line 319, in _training_step
+    training_step_output = call._call_strategy_hook(trainer, "training_step", *kwargs.values())
+  File "/home/cholab/LabMembers/Samar/EO-based-yield-prediction/model/.venv/lib/python3.11/site-packages/lightning/pytorch/trainer/call.py", line 329, in _call_strategy_hook
+    output = fn(*args, **kwargs)
+  File "/home/cholab/LabMembers/Samar/EO-based-yield-prediction/model/.venv/lib/python3.11/site-packages/lightning/pytorch/strategies/strategy.py", line 391, in training_step
+    return self.lightning_module.training_step(*args, **kwargs)
+  File "/home/cholab/LabMembers/Samar/EO-based-yield-prediction/model/src/farm_us/training/lightning_module.py", line 67, in training_step
+    loss, _ = self._step(batch, "train")
+  File "/home/cholab/LabMembers/Samar/EO-based-yield-prediction/model/src/farm_us/training/lightning_module.py", line 50, in _step
+    main_loss, n_valid = self.loss_fn(out["main"], target, mask)
+  File "/home/cholab/LabMembers/Samar/EO-based-yield-prediction/model/src/farm_us/training/losses.py", line 66, in <lambda>
+    return lambda p, t, m: masked_mse(p, t, m)
+  File "/home/cholab/LabMembers/Samar/EO-based-yield-prediction/model/src/farm_us/training/losses.py", line 26, in masked_mse
+    err = (pred - target) ** 2
+  File "/home/cholab/LabMembers/Samar/EO-based-yield-prediction/model/.venv/lib/python3.11/site-packages/torch/_tensor.py", line 32, in wrapped
+    @functools.wraps(f)
+  File "/home/cholab/LabMembers/Samar/EO-based-yield-prediction/model/.venv/lib/python3.11/site-packages/lightning/pytorch/trainer/connectors/signal_connector.py", line 36, in __call__
+    signal_handler(signum, frame)
+  File "/home/cholab/LabMembers/Samar/EO-based-yield-prediction/model/.venv/lib/python3.11/site-packages/lightning/pytorch/trainer/connectors/signal_connector.py", line 109, in _sigterm_notifier_fn
+    log.info(rank_prefixed_message(f"Received SIGTERM: {signum}", self.trainer.local_rank))
+  File "/home/cholab/.local/share/uv/python/cpython-3.11.14-linux-x86_64-gnu/lib/python3.11/logging/__init__.py", line 1489, in info
+    self._log(INFO, msg, args, **kwargs)
+  File "/home/cholab/.local/share/uv/python/cpython-3.11.14-linux-x86_64-gnu/lib/python3.11/logging/__init__.py", line 1634, in _log
+    self.handle(record)
+  File "/home/cholab/.local/share/uv/python/cpython-3.11.14-linux-x86_64-gnu/lib/python3.11/logging/__init__.py", line 1644, in handle
+    self.callHandlers(record)
+  File "/home/cholab/.local/share/uv/python/cpython-3.11.14-linux-x86_64-gnu/lib/python3.11/logging/__init__.py", line 1706, in callHandlers
+    hdlr.handle(record)
+  File "/home/cholab/.local/share/uv/python/cpython-3.11.14-linux-x86_64-gnu/lib/python3.11/logging/__init__.py", line 978, in handle
+    self.emit(record)
+  File "/home/cholab/LabMembers/Samar/EO-based-yield-prediction/model/.venv/lib/python3.11/site-packages/rich/logging.py", line 188, in emit
+    self.handleError(record)
+Message: '[rank: 0] Received SIGTERM: 15'
+Arguments: ()
+Epoch 7/29 ╸                659/12370 0:19:23 •       1.28it/s v_num: 2         
+                                      2:32:36                  train/loss: 0.108
+                                                               val/loss: 0.397  
+Traceback (most recent call last):
+  File "<frozen runpy>", line 198, in _run_module_as_main
+  File "<frozen runpy>", line 88, in _run_code
+  File "/home/cholab/LabMembers/Samar/EO-based-yield-prediction/model/src/farm_us/cli.py", line 282, in <module>
+    main()
+  File "/home/cholab/LabMembers/Samar/EO-based-yield-prediction/model/src/farm_us/cli.py", line 278, in main
+    COMMANDS[args.command](args)
+  File "/home/cholab/LabMembers/Samar/EO-based-yield-prediction/model/src/farm_us/cli.py", line 219, in cmd_train
+    train_fold(_cfg(args), use_dummy="--real" not in sys.argv, resume_from=resume_from)
+  File "/home/cholab/LabMembers/Samar/EO-based-yield-prediction/model/src/farm_us/training/run.py", line 211, in train_fold
+    trainer.fit(lm, dm.train_dataloader(), dm.val_dataloader(), ckpt_path=resume_from) # This is the most important line in this function, it runs the training loop using the Lightning trainer, model, and data module.
+    ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/cholab/LabMembers/Samar/EO-based-yield-prediction/model/.venv/lib/python3.11/site-packages/lightning/pytorch/trainer/trainer.py", line 584, in fit
+    call._call_and_handle_interrupt(
+  File "/home/cholab/LabMembers/Samar/EO-based-yield-prediction/model/.venv/lib/python3.11/site-packages/lightning/pytorch/trainer/call.py", line 49, in _call_and_handle_interrupt
+    return trainer_fn(*args, **kwargs)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/cholab/LabMembers/Samar/EO-based-yield-prediction/model/.venv/lib/python3.11/site-packages/lightning/pytorch/trainer/trainer.py", line 630, in _fit_impl
+    self._run(model, ckpt_path=ckpt_path, weights_only=weights_only)
+  File "/home/cholab/LabMembers/Samar/EO-based-yield-prediction/model/.venv/lib/python3.11/site-packages/lightning/pytorch/trainer/trainer.py", line 1079, in _run
+    results = self._run_stage()
+              ^^^^^^^^^^^^^^^^^
+  File "/home/cholab/LabMembers/Samar/EO-based-yield-prediction/model/.venv/lib/python3.11/site-packages/lightning/pytorch/trainer/trainer.py", line 1123, in _run_stage
+    self.fit_loop.run()
+  File "/home/cholab/LabMembers/Samar/EO-based-yield-prediction/model/.venv/lib/python3.11/site-packages/lightning/pytorch/loops/fit_loop.py", line 217, in run
+    self.advance()
+  File "/home/cholab/LabMembers/Samar/EO-based-yield-prediction/model/.venv/lib/python3.11/site-packages/lightning/pytorch/loops/fit_loop.py", line 469, in advance
+    self.epoch_loop.run(self._data_fetcher)
+  File "/home/cholab/LabMembers/Samar/EO-based-yield-prediction/model/.venv/lib/python3.11/site-packages/lightning/pytorch/loops/training_epoch_loop.py", line 153, in run
+    self.advance(data_fetcher)
+  File "/home/cholab/LabMembers/Samar/EO-based-yield-prediction/model/.venv/lib/python3.11/site-packages/lightning/pytorch/loops/training_epoch_loop.py", line 352, in advance
+    batch_output = self.automatic_optimization.run(trainer.optimizers[0], batch_idx, kwargs)
+                   ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/cholab/LabMembers/Samar/EO-based-yield-prediction/model/.venv/lib/python3.11/site-packages/lightning/pytorch/loops/optimization/automatic.py", line 192, in run
+    self._optimizer_step(batch_idx, closure)
+  File "/home/cholab/LabMembers/Samar/EO-based-yield-prediction/model/.venv/lib/python3.11/site-packages/lightning/pytorch/loops/optimization/automatic.py", line 270, in _optimizer_step
+    call._call_lightning_module_hook(
+  File "/home/cholab/LabMembers/Samar/EO-based-yield-prediction/model/.venv/lib/python3.11/site-packages/lightning/pytorch/trainer/call.py", line 177, in _call_lightning_module_hook
+    output = fn(*args, **kwargs)
+             ^^^^^^^^^^^^^^^^^^^
+  File "/home/cholab/LabMembers/Samar/EO-based-yield-prediction/model/.venv/lib/python3.11/site-packages/lightning/pytorch/core/module.py", line 1368, in optimizer_step
+    optimizer.step(closure=optimizer_closure)
+  File "/home/cholab/LabMembers/Samar/EO-based-yield-prediction/model/.venv/lib/python3.11/site-packages/lightning/pytorch/core/optimizer.py", line 154, in step
+    step_output = self._strategy.optimizer_step(self._optimizer, closure, **kwargs)
+                  ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/cholab/LabMembers/Samar/EO-based-yield-prediction/model/.venv/lib/python3.11/site-packages/lightning/pytorch/strategies/strategy.py", line 239, in optimizer_step
+    return self.precision_plugin.optimizer_step(optimizer, model=model, closure=closure, **kwargs)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/cholab/LabMembers/Samar/EO-based-yield-prediction/model/.venv/lib/python3.11/site-packages/lightning/pytorch/plugins/precision/amp.py", line 90, in optimizer_step
+    self._after_closure(model, optimizer)
+  File "/home/cholab/LabMembers/Samar/EO-based-yield-prediction/model/.venv/lib/python3.11/site-packages/lightning/pytorch/plugins/precision/precision.py", line 87, in _after_closure
+    call._call_callback_hooks(trainer, "on_before_optimizer_step", optimizer)
+  File "/home/cholab/LabMembers/Samar/EO-based-yield-prediction/model/.venv/lib/python3.11/site-packages/lightning/pytorch/trainer/call.py", line 228, in _call_callback_hooks
+    fn(trainer, trainer.lightning_module, *args, **kwargs)
+  File "/home/cholab/LabMembers/Samar/EO-based-yield-prediction/model/src/farm_us/training/callbacks.py", line 68, in on_before_optimizer_step
+    total += float(p.grad.detach().norm(2).item()) ** 2
+                   ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/cholab/LabMembers/Samar/EO-based-yield-prediction/model/.venv/lib/python3.11/site-packages/torch/utils/data/_utils/signal_handling.py", line 73, in handler
+    _error_if_any_worker_fails()
+RuntimeError: DataLoader worker (pid 1398825) is killed by signal: Terminated. 

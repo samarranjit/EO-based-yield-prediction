@@ -1,0 +1,87 @@
+=== IA 2024 ===
+Running inference on cuda
+Using norm stats: /home/cholab/LabMembers/Samar/EO-based-yield-prediction/model/outputs/runs/cornbelt5_soybeans_longer_time/test2024/norm_stats.json
+[11:33:42] INFO     Building TerraTorch backbone 'prithvi_eo_v2_600_tl'         
+                    (pretrained=True)                                           
+[11:33:48] INFO     HTTP Request: HEAD                                          
+                    https://huggingface.co/ibm-nasa-geospatial/Prithvi-EO-2.0-60
+                    0M-TL/resolve/main/Prithvi_EO_V2_600M_TL.pt "HTTP/1.1 302   
+                    Found"                                                      
+Warning: You are sending unauthenticated requests to the HF Hub. Please set a HF_TOKEN to enable higher rate limits and faster downloads.
+           WARNING  Warning: You are sending unauthenticated requests to the HF 
+                    Hub. Please set a HF_TOKEN to enable higher rate limits and 
+                    faster downloads.                                           
+[11:33:51] INFO     Loaded weights for HLSBands.BLUE in position 0 of patch     
+                    embed                                                       
+           INFO     Loaded weights for HLSBands.GREEN in position 1 of patch    
+                    embed                                                       
+           INFO     Loaded weights for HLSBands.RED in position 2 of patch embed
+           INFO     Loaded weights for HLSBands.NIR_NARROW in position 3 of     
+                    patch embed                                                 
+           INFO     Loaded weights for HLSBands.SWIR_1 in position 4 of patch   
+                    embed                                                       
+           INFO     Loaded weights for HLSBands.SWIR_2 in position 5 of patch   
+                    embed                                                       
+[11:33:58] WARNING  data.exclude_sample_ids lists 82 id(s) not present in the   
+                    qualifying manifest (already filtered, or a typo):          
+                    soybeans_IN_2021_r2464_c3360, soybeans_IN_2021_r2464_c3584, 
+                    soybeans_IN_2022_r11648_c4928,                              
+                    soybeans_IN_2022_r11648_c5152, soybeans_MD_2015_r1120_c4256,
+                    soybeans_MD_2015_r1120_c4480, soybeans_MD_2015_r1120_c4704, 
+                    soybeans_MD_2015_r1120_c4928, soybeans_MD_2015_r1120_c5152, 
+                    soybeans_MD_2015_r1120_c5824, soybeans_MD_2015_r1120_c6048, 
+                    soybeans_MD_2015_r1120_c6272, soybeans_MD_2015_r1792_c6272, 
+                    soybeans_MD_2015_r1792_c6496, soybeans_MD_2015_r1792_c6944, 
+                    soybeans_MD_2015_r1792_c9408, soybeans_MD_2015_r1792_c9632, 
+                    soybeans_MD_2015_r1792_c9856, soybeans_MD_2015_r2016_c10304,
+                    soybeans_MD_2015_r2016_c10528,                              
+                    soybeans_MD_2015_r2016_c10752,                              
+                    soybeans_MD_2015_r2240_c10080,                              
+                    soybeans_MD_2015_r2240_c10304,                              
+                    soybeans_MD_2015_r2240_c10528,                              
+                    soybeans_MD_2015_r2240_c10752, soybeans_MD_2015_r2240_c5376,
+                    soybeans_MD_2015_r224_c9408, soybeans_MD_2015_r224_c9632,   
+                    soybeans_MD_2015_r4032_c10528,                              
+                    soybeans_MD_2015_r4032_c10752,                              
+                    soybeans_MD_2015_r4032_c10976,                              
+                    soybeans_MD_2015_r4032_c11200,                              
+                    soybeans_MD_2015_r4256_c10080,                              
+                    soybeans_MD_2015_r4256_c10528,                              
+                    soybeans_MD_2015_r4256_c10752,                              
+                    soybeans_MD_2015_r4256_c10976,                              
+                    soybeans_MD_2015_r4256_c12320,                              
+                    soybeans_MD_2015_r4256_c12768,                              
+                    soybeans_MD_2015_r4256_c12992, soybeans_MD_2015_r4256_c8288,
+                    soybeans_MD_2015_r4256_c9856, soybeans_MD_2015_r4480_c10080,
+                    soybeans_MD_2015_r4480_c10304,                              
+                    soybeans_MD_2015_r4480_c10528,                              
+                    soybeans_MD_2015_r4480_c10752,                              
+                    soybeans_MD_2015_r4480_c10976,                              
+                    soybeans_MD_2015_r4480_c11200,                              
+                    soybeans_MD_2015_r4480_c11424,                              
+                    soybeans_MD_2015_r4480_c11648,                              
+                    soybeans_MD_2015_r4480_c11872,                              
+                    soybeans_MD_2015_r4480_c12096,                              
+                    soybeans_MD_2015_r4480_c12320,                              
+                    soybeans_MD_2015_r4480_c12544,                              
+                    soybeans_MD_2015_r4480_c12768,                              
+                    soybeans_MD_2015_r4704_c11424,                              
+                    soybeans_MD_2015_r4704_c11648,                              
+                    soybeans_MD_2015_r4704_c11872,                              
+                    soybeans_MD_2015_r4704_c12096,                              
+                    soybeans_MD_2015_r4704_c12320,                              
+                    soybeans_MD_2015_r4704_c12544,                              
+                    soybeans_MD_2015_r4704_c12768,                              
+                    soybeans_MD_2015_r4704_c12992,                              
+                    soybeans_MD_2015_r5152_c12544,                              
+                    soybeans_MD_2015_r5152_c12768,                              
+                    soybeans_MD_2015_r5376_c11424,                              
+                    soybeans_MD_2015_r5376_c11648,                              
+                    soybeans_MD_2015_r5376_c12544, soybeans_MD_2015_r5376_c8512,
+                    soybeans_MD_2015_r672_c7840, soybeans_MD_2015_r672_c8064,   
+                    soybeans_MD_2015_r672_c8736, soybeans_MD_2015_r672_c8960,   
+                    soybeans_MD_2015_r896_c10080, soybeans_MD_2015_r896_c10304, 
+                    soybeans_MD_2015_r896_c6048, soybeans_MD_2015_r896_c6272,   
+                    soybeans_MD_2015_r896_c6496, soybeans_MD_2015_r896_c6720,   
+                    soybeans_MD_2015_r896_c6944, soybeans_MD_2015_r896_c7168,   
+                    soybeans_MD_2015_r896_c7392, soybeans_MD_2015_r896_c7616    

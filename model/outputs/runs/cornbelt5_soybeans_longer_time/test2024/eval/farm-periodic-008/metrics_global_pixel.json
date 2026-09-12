@@ -1,0 +1,12 @@
+{
+  "unit": "pixel",
+  "note": "n counts valid PIXELS. metrics_by_state.csv / metrics_by_year.csv aggregate chip means and their n counts CHIPS. pearson_r2 allows a refitted intercept and slope; r2 is against the 1:1 line and is the one that reflects predictive accuracy.",
+  "n": 107222034.0,
+  "mae": 3.9616036415100098,
+  "rmse": 4.981511116027832,
+  "bias": -0.5574783086776733,
+  "r2": 0.7626164523038315,
+  "pearson_r": 0.880822910351685,
+  "pearson_r2": 0.7758489994004125,
+  "pct_mae": 6.874883530337389
+}
