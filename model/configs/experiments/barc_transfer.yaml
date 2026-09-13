@@ -1,36 +1,4 @@
-# BARC transfer evaluation: measured 30 m soybean yield at the USDA Beltsville
-# Agricultural Research Center, used as an external test set for a checkpoint
-# trained on ridge-distributed county pseudo-labels.
-#
-# READ BEFORE INTERPRETING ANY RESULT FROM THIS CONFIG
-# ----------------------------------------------------
-# 1. NOT an independent test against the Maryland checkpoints. data.exclude_geoids
-#    lists "24033" (Prince George's County, which contains BARC) but it is DEAD
-#    CODE -- nothing in the pipeline reads it, and ~50,882 PG County pixels were
-#    in the Maryland training set. The model has already seen this ground, with
-#    county pseudo-labels. Only the LABELS here are new (measured vs ridge-
-#    distributed). Treat this as "does the model's yield surface agree with
-#    measured ground truth on terrain it has seen", NOT as spatial transfer.
-#
-# 2. Resolution-limited. Prithvi's 14x14 patch embed gives 420 x 420 m tokens;
-#    30 m output is that grid bilinearly upsampled. BARC's 2,676 crop pixels fall
-#    in 61 tokens, NONE of which is 100% BARC (median BARC fill 20.4%). Every
-#    prediction is therefore dominated by non-BARC land inside its own token.
-#    Report FIELD-AGGREGATE metrics (barc_field_id_map.csv) as the headline;
-#    per-pixel scatter is secondary and must be labelled resolution-limited.
-#
-# 3. Expect a large positive bias. The target scaler baked into the Maryland
-#    checkpoints is zscore(center=46.68, scale=6.33) bu/ac -- Maryland's county
-#    pseudo-yield distribution. BARC 2024 measured yields average far below that.
-#    A systematic over-prediction is a genuine finding about label provenance,
-#    not a bug; do not "fix" it by re-fitting the scaler on BARC (that would use
-#    test labels and destroy the test).
-#
-# Architecture below is copied verbatim from
-# outputs/runs/maryland_soybeans/test2024/checkpoints/Decoder_Only/resolved_config.yaml
-# and MUST match the checkpoint being loaded, or load_from_checkpoint will fail
-# on shape mismatch. Change it only in lockstep with the checkpoint.
-experiment_name: barc_transfer
+experiment_name: barc_transfer_5_states_model
 
 data:
   crop: SOYBEANS
@@ -86,7 +54,7 @@ model:
   depth: 32
   out_blocks_one_based: [8, 16, 24, 32]
   aux_block_one_based: 24
-  temporal_reducer: flatten_time
+  temporal_reducer: attention
   decoder_channels: 1024
   ppm_bins: [1, 2, 3, 6]
   multiscale_fpn: false
@@ -106,5 +74,5 @@ train:
   # cornbelt4 training may be sharing the GPU.
   batch_size: 4
   num_workers: 8
-  precision: bf16-mixed
+  precision: 16-mixed
   accelerator: auto

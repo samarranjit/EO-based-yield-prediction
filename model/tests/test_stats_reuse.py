@@ -104,3 +104,49 @@ def test_shipped_configs_do_not_enable_reuse():
         "configs/experiments/maryland_soybeans.yaml",
     ):
         assert load_config(path).norm.reuse_stats_from is None, path
+
+
+def test_refuses_when_state_list_differs(tmp_path):
+    """A changed state list leaves train_years identical, so the year check alone
+    cannot catch it -- this is the exact 4-state -> 5-state case."""
+    p = tmp_path / "norm_stats.json"
+    p.write_text(json.dumps({
+        "band_mean": [0.1] * 6, "band_std": [0.2] * 6,
+        "target": {"mode": "zscore", "center": 58.0, "scale": 9.4},
+        "mode": "fold_training_statistics", "train_years": [2020, 2021, 2022],
+        "n_chips_used": 2000, "n_chips_total": 32336, "stats_seed": 0,
+        "states": ["IA", "IL", "IN", "MN"],
+    }))
+    cfg = _cfg(str(p))
+    cfg.data.states = ["IA", "IL", "IN", "MD", "MN"]
+    with pytest.raises(StatsReuseError, match="states"):
+        load_or_compute_fold_stats(cfg, object(), _Fold([2020, 2021, 2022]))
+
+
+def test_same_state_list_in_any_order_is_accepted(tmp_path):
+    p = tmp_path / "norm_stats.json"
+    p.write_text(json.dumps({
+        "band_mean": [0.1] * 6, "band_std": [0.2] * 6,
+        "target": {"mode": "zscore", "center": 58.0, "scale": 9.4},
+        "mode": "fold_training_statistics", "train_years": [2020, 2021, 2022],
+        "states": ["MN", "IA", "IN", "IL"],
+    }))
+    cfg = _cfg(str(p))
+    cfg.data.states = ["IA", "IL", "IN", "MN"]
+    assert load_or_compute_fold_stats(cfg, object(), _Fold([2020, 2021, 2022])) is not None
+
+
+def test_legacy_file_without_states_warns_but_is_allowed(tmp_path, caplog):
+    """Files written before the field existed must stay usable, but loudly."""
+    import logging
+    p = tmp_path / "norm_stats.json"
+    p.write_text(json.dumps({
+        "band_mean": [0.1] * 6, "band_std": [0.2] * 6,
+        "target": {"mode": "zscore", "center": 58.0, "scale": 9.4},
+        "mode": "fold_training_statistics", "train_years": [2020, 2021, 2022],
+    }))
+    cfg = _cfg(str(p))
+    cfg.data.states = ["IA", "IL", "IN", "MN"]
+    with caplog.at_level(logging.WARNING):
+        assert load_or_compute_fold_stats(cfg, object(), _Fold([2020, 2021, 2022])) is not None
+    assert "CANNOT be verified" in caplog.text

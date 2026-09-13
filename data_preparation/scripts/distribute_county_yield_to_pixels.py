@@ -743,9 +743,9 @@ if MAKE_PLOT:
         cbar2.set_label(f"Yield (bu/ac)\n[{pseudo_vmin:.2f}, {pseudo_vmax:.2f}]")
 
         plt.tight_layout()
-        plt.savefig(OUTPUT_PLOT, dpi=150, bbox_inches="tight")
-        print(f"  Plot saved             : {OUTPUT_PLOT}")
-        plt.show()
+        # plt.savefig(OUTPUT_PLOT, dpi=150, bbox_inches="tight")
+        # print(f"  Plot saved             : {OUTPUT_PLOT}")
+        # plt.show()
     else:
         print("No finite pseudo-yield values available for plotting.")
 

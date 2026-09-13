@@ -36,6 +36,7 @@ _ALIASES = {
     "year": "_ignore.year",
     "checkpoint": "_ignore.checkpoint",
     "resume_from": "_ignore.resume_from",
+    "init_from": "_ignore.init_from",
     "min_valid": "_ignore.min_valid",
 }
 
@@ -215,8 +216,13 @@ def cmd_profile_memory(args):
 def cmd_train(args):
     from .training.run import train_fold
 
+    # resume_from continues an interrupted run (optimiser state restored);
+    # init_from starts a NEW run from borrowed weights (optimiser fresh). See
+    # train_fold's docstring -- they are not interchangeable.
     resume_from = _kv(args.overrides, "resume_from")
-    train_fold(_cfg(args), use_dummy="--real" not in sys.argv, resume_from=resume_from)
+    init_from = _kv(args.overrides, "init_from")
+    train_fold(_cfg(args), use_dummy="--real" not in sys.argv,
+               resume_from=resume_from, init_from=init_from)
 
 
 def cmd_evaluate(args):

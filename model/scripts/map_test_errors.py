@@ -71,7 +71,12 @@ def main(argv):
     with rasterio.open(reader._label_path(state, year)) as ds:
         transform, crs = ds.transform, ds.crs
 
-    out_dir = Path("outputs/predictions/decoder_only")
+    # Derived from experiment_name, not hardcoded: this script is run against
+    # several experiments (cornbelt5 variants, BARC transfer), and a fixed path
+    # silently files every experiment's maps into whichever one was hardcoded
+    # last -- overwriting the previous experiment's GeoTIFFs with identically
+    # named ones. Mirrors the outputs/runs/<experiment_name>/ convention.
+    out_dir = Path("outputs/predictions") / cfg.experiment_name
     stem = f"{cfg.data.crop.lower()}_{state}_{year}"
 
     # _pred / _actual / _residual share ONE footprint (comparison_mask) so the

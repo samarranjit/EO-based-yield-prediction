@@ -1,0 +1,135 @@
+# Fine-tune the Corn Belt checkpoint on BARC's MEASURED 30 m yield.
+# The paper's `finetune_from_farm` experiment: zero-shot R2 0.508 -> 0.768.
+#
+# Launch with init_from (NOT resume_from):
+#   uv run python -m farm_us.cli train --config configs/experiments/barc_finetune.yaml --real \
+#     init_from=outputs/runs/cornbelt5_soybeans_longer_time/test2024/checkpoints/farm-018-0.0000.ckpt
+#
+# READ BEFORE INTERPRETING ANY RESULT FROM THIS CONFIG
+# ----------------------------------------------------
+# 1. THE DATASET IS TINY. 66 chips total, 6 per year. With 2024 held out and
+#    2023 for validation this fine-tunes on 54 CHIPS (9 years x 6), and BARC's
+#    soybean footprint is 0.13-3.05% of any 224x224 chip -- the zero-shot test
+#    scored on 2,057 valid pixels. Every hyper-parameter below is set for that
+#    regime, not copied from the national run. Overfitting is the default
+#    outcome here; the settings exist to slow it down, not to prevent it.
+#
+# 2. decoder_only, NOT full. barc_finetune.yaml in configs/barc/ specifies
+#    `full` because the paper fine-tuned on a far larger 10 m yield-monitor set.
+#    Unfreezing 600M encoder parameters against 54 chips would memorise them in
+#    a couple of epochs. Only the 143M decoder+head moves here, and even that is
+#    a lot of capacity for this much data.
+#
+# 3. Norm stats ARE recomputed on BARC's TRAIN years (no reuse_stats_from), and
+#    that is deliberate. The target scaler baked into the Corn Belt checkpoint is
+#    zscore(center=55.50, scale=9.19) bu/ac, but BARC's measured yields average
+#    far below that -- the zero-shot run over-predicted by +10.9 bu/ac. Refitting
+#    the scaler on BARC's TRAINING years only is train-only statistics, so it
+#    leaks nothing, and it puts the optimisation problem in a sensible range.
+#    The stats pass is cheap here (54 chips, not 2000).
+#
+# 4. This is NOT a spatial-transfer test. BARC sits in Prince George's County MD,
+#    and MD is one of the checkpoint's five training states (data.exclude_geoids
+#    is dead code -- nothing reads it). The model has seen this ground with
+#    county pseudo-labels. What is new is the LABELS: measured yield instead of
+#    ridge-distributed county yield. That is the point of the experiment.
+#
+# 5. Resolution still bounds the result. Prithvi's 14x14 patch embed gives 420 m
+#    tokens; BARC's crop pixels fall in 61 tokens with median BARC fill 20.4%.
+#    Fine-tuning cannot fix that -- report field-aggregate metrics
+#    (barc_field_id_map.csv) as the headline, per-pixel scatter as secondary.
+#
+# Architecture is copied from the checkpoint's resolved_config and MUST match it
+# or load_from_checkpoint raises on shape mismatch. temporal_reducer: attention.
+experiment_name: barc_finetune_from_farm018
+
+data:
+  crop: SOYBEANS
+  states: [BARC]                 # pseudo-state -> FIPS 24; see STATE_FIPS in config.py
+  # 2014 and 2015 have only 6 and 7 monthly composites; the missing-month policy
+  # covers the gap, but they are the weakest years in an already tiny set.
+  years: [2014,2015,2016,2017,2018,2019, 2020, 2021, 2022, 2023, 2024]
+
+  label_variant: measured        # NOT the ridge-distributed pseudo-labels
+  label_units: bu_ac
+  n_timesteps: 8
+  chip_size: 224
+  stride: 224
+  missing_month_policy: temporal_interp
+
+  # MANDATORY. BARC's soybean footprint is a fraction of a percent of a chip, so
+  # the 0.05 default makes _qualifying_chip_set return the empty set and the
+  # whole dataset silently vanishes -- training would report success on zero
+  # samples rather than erroring.
+  min_crop_fraction: 0.0001
+  min_label_fraction: 0.0
+
+  label_root: ../data_preparation/data/barc_data/yield_labels
+  cdl_root: ../data_preparation/data/barc_data/cdl_masks
+  imagery_root: ../data_preparation/data/barc_data/HLS_Composites
+  counties_path: ../data_preparation/data/county_maps/selected_states_counties_2023.gpkg
+  manifest_path: outputs/manifests/manifest_barc.parquet
+
+norm:
+  mode: fold_training_statistics
+  target_scaling: zscore
+  # No reuse_stats_from -- see note 3. Recomputed from BARC train years only.
+
+split:
+  policy: explicit_map
+  split_map_path: configs/splits/loyo_soybeans.yaml
+  test_year: 2024                # never touched during training
+  val_years: [2023]              # checkpoint selection + early stopping only
+
+model:
+  backbone_id: ibm-nasa-geospatial/Prithvi-EO-2.0-600M-TL
+  pretrained: true
+  finetune_mode: decoder_only    # see note 2
+  use_time_embed: true
+  use_location_embed: true
+  embed_dim: 1280
+  depth: 32
+  out_blocks_one_based: [8, 16, 24, 32]
+  aux_block_one_based: 24
+  temporal_reducer: attention    # MUST match farm-018
+  decoder_channels: 1024
+  ppm_bins: [1, 2, 3, 6]
+  multiscale_fpn: false
+  head_dropout: 0.3              # raised from 0.1: 54 chips, 143M trainable params
+  use_auxiliary: true
+  aux_channels: 256
+  final_activation: linear
+
+loss:
+  main: mse
+  huber_delta: 1.0
+  aux_weight: 0.2
+
+train:
+  seed: 0
+  # 54 train chips. At batch 4 that is 13 batches/epoch (drop_last discards the
+  # remaining 2), so an "epoch" here is seconds, not hours -- epochs are cheap
+  # and early stopping does the real work.
+  batch_size: 4
+  grad_accum: 1
+  epochs: 60
+  # 1e-5 would be aggressive against this little data. 2e-6 with a short warm-up
+  # keeps the borrowed decoder from being destroyed in the first few steps.
+  lr: 2.0e-6
+  min_lr: 1.0e-8
+  warmup_epochs: 2
+  weight_decay: 0.3
+  scheduler: cosine
+  grad_clip: 1.0
+  precision: 16-mixed
+  # Patience 8 on 60 epochs. With this much capacity and this little data, val
+  # RMSE is expected to turn upward early; stopping there is the intended
+  # behaviour, not a failed run.
+  early_stopping: true
+  early_stopping_patience: 8
+  ckpt_monitor: val/main_rmse_phys
+  ckpt_mode: min
+  periodic_ckpt_every_n_epochs: 10
+  num_workers: 4
+  prefetch_factor: 2
+  accelerator: auto

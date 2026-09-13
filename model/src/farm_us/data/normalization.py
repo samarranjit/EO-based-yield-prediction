@@ -78,6 +78,10 @@ class NormStats:
     n_chips_total: int | None = None
     #: Seed for the subsample draw; None when no subsampling occurred.
     stats_seed: int | None = None
+    #: States the statistics were computed over. None means "not recorded" (a
+    #: file written before this field existed) -- reuse can then only be checked
+    #: against train_years, which does NOT detect a changed state list.
+    states: list[str] | None = None
 
     def save(self, path: str | Path) -> None:
         path = Path(path)

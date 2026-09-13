@@ -108,6 +108,7 @@ def compute_fold_stats(cfg: FarmConfig, dm: FarmDataModule) -> NormStats:
             mode=cfg.norm.mode, train_years=train_years,
             n_chips_used=len(indices), n_chips_total=n_total,
             stats_seed=cfg.norm.stats_seed if len(indices) < n_total else None,
+            states=sorted(cfg.data.states),
         )
     return stats
 
@@ -153,6 +154,26 @@ def load_or_compute_fold_stats(cfg: FarmConfig, dm: FarmDataModule, fold) -> Nor
             f"{cfg.norm.mode!r}."
         )
 
+    # A changed state list changes the train split just as surely as a changed
+    # year list does, but it leaves train_years identical -- so the year check
+    # alone cannot catch it. Adding a state and reusing the old file would
+    # normalise with statistics that never saw the new state's imagery.
+    want_states = sorted(cfg.data.states)
+    if stats.states is not None:
+        got_states = sorted(stats.states)
+        if got_states != want_states:
+            raise StatsReuseError(
+                f"Refusing to reuse {path}: computed on states={got_states}, but "
+                f"this run trains on {want_states}. Recompute instead."
+            )
+    else:
+        logger.warning(
+            "%s predates the `states` provenance field, so the state list CANNOT "
+            "be verified -- only train_years was checked. Confirm by hand that it "
+            "was computed on exactly %s before trusting this run.",
+            path, want_states,
+        )
+
     logger.warning(
         "REUSING normalization stats from %s (train_years=%s, n_chips_used=%s, "
         "seed=%s) -- statistics pass SKIPPED",
@@ -161,8 +182,35 @@ def load_or_compute_fold_stats(cfg: FarmConfig, dm: FarmDataModule, fold) -> Nor
     return stats
 
 
-def train_fold(cfg: FarmConfig, use_dummy: bool = True, dummy_embed_dim: int = 32, resume_from: str | None = None):
+def train_fold(cfg: FarmConfig, use_dummy: bool = True, dummy_embed_dim: int = 32,
+               resume_from: str | None = None, init_from: str | None = None):
+    """Train one fold.
+
+    ``resume_from`` and ``init_from`` both take a checkpoint but mean opposite
+    things, and using the wrong one silently produces a broken run:
+
+    ``resume_from`` CONTINUES an interrupted run. Lightning restores the
+        optimiser's moment buffers, the LR-scheduler position and the epoch
+        counter, then carries on. Correct for "the job died at epoch 13".
+
+    ``init_from``   TRANSFERS weights into a NEW run. Only the model weights are
+        taken; the optimiser, LR schedule and epoch counter all start fresh.
+        Correct for "fine-tune the Corn Belt model on BARC".
+
+    Using ``resume_from`` for transfer is the trap: a checkpoint from epoch 18 of
+    a 30-epoch cosine schedule resumes at epoch 19 with the LR already decayed to
+    near ``min_lr``, so the model barely moves and the run stops almost
+    immediately at ``epochs``. The source checkpoint is never written to in
+    either case.
+    """
     import lightning as L
+
+    if resume_from and init_from:
+        raise ValueError(
+            "Pass resume_from OR init_from, not both: one continues a run "
+            "(optimiser state restored), the other starts a new run from "
+            "borrowed weights (optimiser fresh). See train_fold's docstring."
+        )
 
     seed_everything(cfg.train.seed)
     fold = resolve_fold(cfg)
@@ -178,7 +226,21 @@ def train_fold(cfg: FarmConfig, use_dummy: bool = True, dummy_embed_dim: int = 3
     save_resolved_config(cfg, out_dir / "resolved_config.yaml")
     stats.save(out_dir / "norm_stats.json")
 
-    lm = FarmLightningModule(cfg, use_dummy=use_dummy, dummy_embed_dim=dummy_embed_dim)
+    if init_from:
+        # Weight-only transfer init. load_from_checkpoint restores the module's
+        # weights and nothing else -- optimiser state lives in the Trainer and is
+        # only restored by fit(ckpt_path=...), which we deliberately do not pass
+        # below. It also validates the architecture: a checkpoint whose shapes
+        # disagree with cfg.model raises here rather than loading partially.
+        logger.warning(
+            "INIT (weights only) from %s -- fresh optimiser, LR schedule and "
+            "epoch counter; the source checkpoint is not modified", init_from,
+        )
+        lm = FarmLightningModule.load_from_checkpoint(  # type: ignore[attr-defined]
+            init_from, cfg=cfg, use_dummy=use_dummy, dummy_embed_dim=dummy_embed_dim,
+        )
+    else:
+        lm = FarmLightningModule(cfg, use_dummy=use_dummy, dummy_embed_dim=dummy_embed_dim)
     lm.set_target_scaler(stats.target_scaler())
 
     from .trainer import build_trainer

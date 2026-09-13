@@ -441,9 +441,20 @@ class FarmDataModule:
     def _loader(self, ds, shuffle: bool, drop_last: bool = False):
         from torch.utils.data import DataLoader
 
+        n_workers = self.cfg.train.num_workers
+        kwargs = {}
+        if n_workers > 0:
+            # torch rejects both of these outright when num_workers == 0, so they
+            # are only passed for the multi-process path. See TrainConfig for why
+            # the defaults are what they are.
+            kwargs["persistent_workers"] = self.cfg.train.persistent_workers
+            kwargs["prefetch_factor"] = self.cfg.train.prefetch_factor
+
         return DataLoader(
             ds, batch_size=self.cfg.train.batch_size, shuffle=shuffle,
-            num_workers=self.cfg.train.num_workers, drop_last=drop_last,
+            num_workers=n_workers, drop_last=drop_last,
+            pin_memory=self.cfg.train.pin_memory,
+            **kwargs,
         )
 
     def train_dataloader(self):

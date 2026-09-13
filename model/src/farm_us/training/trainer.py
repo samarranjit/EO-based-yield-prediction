@@ -53,16 +53,15 @@ def build_trainer(
     # metric improves that epoch -- during a long plateau (our real run went 43
     # epochs without a new best) it never fires, leaving no recoverable weights
     # past the last-best epoch even though training kept going. This one is keyed
-    # on recency (monitor=None) instead, so it can't stall the same way: one
-    # rolling, resumable snapshot, overwritten every N epochs. (Lightning requires
-    # save_top_k in {0, 1, -1} when monitor=None; -1 would keep every periodic
-    # snapshot ever made, unbounded -- 1 is the efficient choice.)
+    # on recency (monitor=None) instead, so it can't stall the same way. Retention
+    # (rolling-overwrite vs. keep-every-snapshot) is config-driven -- see
+    # periodic_ckpt_save_top_k in config.py.
     periodic_ckpt = ModelCheckpoint(
         dirpath=str(out / "checkpoints"),
         filename="farm-periodic-{epoch:03d}",
         monitor=None,
         every_n_epochs=cfg.train.periodic_ckpt_every_n_epochs,
-        save_top_k=1,
+        save_top_k=cfg.train.periodic_ckpt_save_top_k,
         save_last=False,
         auto_insert_metric_name=False,
     )

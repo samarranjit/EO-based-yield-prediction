@@ -240,6 +240,20 @@ class TrainConfig:
     precision: str = "bf16-mixed"
     grad_clip: float | None = None
     num_workers: int = 32
+    # DataLoader throughput knobs. Chip construction is CPU-heavy (windowed
+    # reads across 8 monthly rasters + the missing-month policy), so on a real
+    # run the GPU spends much of its time waiting on workers -- measured 45.5%
+    # mean GPU utilisation (idle 51% of the time) on the 5-state fold.
+    #   persistent_workers: without it every worker is torn down and respawned
+    #     at each epoch boundary, re-importing rasterio and re-opening datasets.
+    #   prefetch_factor: batches queued per worker. The default of 2 drains
+    #     immediately when a chip takes seconds to build, stalling the GPU.
+    #   pin_memory: page-locked staging buffers so host->device copies can be
+    #     async instead of blocking the training step.
+    # All three are inert when num_workers == 0 (see FarmDataModule._loader).
+    persistent_workers: bool = True
+    prefetch_factor: int = 4
+    pin_memory: bool = True
     # single | ddp | fsdp
     strategy: str = "single"
     devices: int = 1
@@ -257,11 +271,15 @@ class TrainConfig:
     # refreshes when the monitored metric ALSO improves that epoch (confirmed by
     # reading ModelCheckpoint's source directly), so a long plateau leaves no
     # recoverable weights past the last-best epoch. This periodic saver is keyed
-    # on recency (monitor=None) instead, so it can't get stuck the same way -- a
-    # single rolling snapshot, overwritten every N epochs (Lightning only allows
-    # save_top_k in {0, 1, -1} when monitor=None; -1 keeps every one ever saved,
-    # unbounded, so 1 is the efficient choice here).
+    # on recency (monitor=None) instead, so it can't get stuck the same way.
     periodic_ckpt_every_n_epochs: int = 10
+    # Lightning only allows save_top_k in {0, 1, -1} when monitor=None. 1 (default)
+    # keeps a single rolling snapshot, overwritten every N epochs -- cheap, but only
+    # the latest periodic epoch is ever recoverable. -1 keeps every periodic
+    # snapshot ever made, unbounded -- needed for e.g. building a training-progress
+    # animation from multiple epochs' predictions, at the cost of one full
+    # checkpoint file (~size of the model) per N epochs on disk.
+    periodic_ckpt_save_top_k: int = 1
 
 
 @dataclass

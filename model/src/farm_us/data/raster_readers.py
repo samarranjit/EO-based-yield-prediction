@@ -141,7 +141,24 @@ class GeotiffMonthlyReader:
                     raise DataContractError(f"{p} has {ds.count} bands, expected {n_bands}")
                 nod = ds.nodata if ds.nodata is not None else self.cfg.hls_nodata
                 iw = _aligned_window(ds, bounds, str(p))
-                arr = ds.read(window=iw, boundless=True, fill_value=nod).astype(np.float32)
+                # A single bad GDAL tile (bit rot / truncated write) must not kill an
+                # hours-long training run over one worker's one chip. Chip-ID exclusion
+                # lists (data.exclude_sample_ids) do not fully cover this: they're built
+                # on the LABEL grid, but this window is re-aligned into the IMAGERY
+                # grid by _aligned_window, so a neighboring, non-excluded chip's aligned
+                # window can still land on the same corrupted block (see incident notes
+                # in docs/TROUBLESHOOTING.md). Treat a read failure exactly like a
+                # missing month -- explicit, logged, and handled by the existing
+                # missing_month_policy -- rather than crashing the DataLoader worker.
+                try:
+                    arr = ds.read(window=iw, boundless=True, fill_value=nod).astype(np.float32)
+                except rasterio.errors.RasterioIOError as e:
+                    logger.warning(
+                        "Corrupted read in %s (%s, state=%s year=%s window=row%d_col%d): "
+                        "%s -- treating this month as missing",
+                        p.name, mon, state, year, window.row_off, window.col_off, e,
+                    )
+                    continue
                 valid = np.all(arr != nod, axis=0) & np.all(np.isfinite(arr), axis=0)
                 arr = arr * self.cfg.hls_scale
                 arr[:, ~valid] = np.nan
