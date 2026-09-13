@@ -67,3 +67,26 @@ bins [1,2,3,6] on a 16×16 grid (16 not divisible by 3/6), unsupported on MPS. U
 Label rasters live on OneDrive here. Windowed reads minimize I/O, but for
 training copy the needed state-years to local SSD, or materialize chips
 (NPZ/Zarr) once via the `chips_npz` reader path.
+
+## Corrupted HLS tile crashes a DataLoader worker
+`rasterio.errors.RasterioIOError: ... TIFFReadEncodedTile() failed` /
+`ZIPDecode: Decoding error at scanline N` means a specific GDAL block in an
+imagery file is genuinely corrupt (bit rot or a truncated write), not a
+transient I/O blip -- it reproduces at the exact same block offset every time.
+`scripts/scan_hls_corruption.py` finds every bad block for a config up front
+and writes `outputs/qc/hls_corruption_<name>.json`.
+
+`data.exclude_sample_ids` alone does not fully cover this: it excludes chips
+on the LABEL pixel grid, but `GeotiffMonthlyReader.read_chip` re-aligns each
+imagery read into the IMAGERY raster's own grid via `_aligned_window` (see
+that function's docstring -- label and HLS/CDL rasters do not share an
+origin). A neighboring, non-excluded chip's aligned window can still land on
+the same corrupted block that its excluded neighbor also touches.
+
+Because of that gap, `read_chip` catches `RasterioIOError` per month-read and
+treats that timestep as missing (same as a genuinely absent file), logging a
+warning and falling through to the configured `missing_month_policy` instead
+of propagating and killing the whole training run. This is deliberately at
+the single-month granularity, not "skip the whole chip" or "skip the whole
+file" -- one corrupted block in one month of one chip should not discard the
+other 7 valid months of real data for that chip.
