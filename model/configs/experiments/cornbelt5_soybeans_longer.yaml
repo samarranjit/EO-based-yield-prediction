@@ -1,0 +1,227 @@
+# 5 states (IA, IL, IN, MD, MN), 2020-2024, LOYO test year 2024, decoder_only.
+#
+# Successor to cornbelt4_soybeans.yaml. Adding Maryland is aimed at the component
+# that actually carries the signal: a variance decomposition of the 2023 labels
+# (3.0M pixels, 186 counties) showed
+#     BETWEEN counties  std 6.911  = 84% of label variance
+#     WITHIN  counties  std 2.983  = 16%
+# so predicting county means is essentially the whole task, and more counties is
+# more of the thing being learned. MD adds 24 counties x 3 train years.
+#
+# WHAT THE cornbelt4 RUNS ESTABLISHED (all measured, not assumed):
+#   - val R2 plateaus at ~0.48-0.50 from epoch 0; train loss keeps falling 3x.
+#   - Ruled out as the cause: spatial diversity (31x more locations, no effect),
+#     batch size (3x change, no effect), and location embeddings (removing them
+#     made it slightly BETTER: R2 0.4978 vs 0.4829).
+#   - Also ruled out: a label information ceiling. If the model predicted every
+#     county mean exactly, residual RMSE would be 2.98 bu/ac; it achieves 5.29,
+#     so ~41% of the achievable signal is still unclaimed.
+#   - Leading remaining hypothesis: scale mismatch. A 224x224 chip at 30 m spans
+#     6.72 km, but a county is ~50 km across, so each chip sees ~2% of the area
+#     whose mean it must predict. Untested.
+#
+# Location embeddings are ON here (per request). The no-location ablation showed
+# they are not load-bearing, so this is not a leakage concern -- but that run also
+# carried the new regularisation, so the two were not perfectly isolated. See
+# docs/LOCATION_EMBEDDING_RISK.md.
+#
+# NOTE: reuses the 15-state manifest -- FarmDataModule._setup_real filters it by
+# data.states, so NO rebuild is needed for the added state.
+#
+# NORM STATS MUST BE RECOMPUTED, NOT REUSED. The train split changed (MD chips
+# added), so the 4-state norm_stats.json no longer describes this fold. Beware:
+# the reuse guard in training/run.py validates train_years only -- it would NOT
+# catch a states mismatch and would accept the 4-state file. Do not pass
+# norm.reuse_stats_from here.
+experiment_name: cornbelt5_soybeans_longer_time
+
+data:
+  crop: SOYBEANS
+  states: [IA, IL, IN, MD, MN]
+  years: [2014,2015,2016,2017,2018,2019, 2020, 2021, 2022, 2023, 2024]
+
+  label_variant: pseudo
+  label_units: bu_ac
+  n_timesteps: 8
+  chip_size: 224
+  stride: 224
+  missing_month_policy: temporal_interp
+
+  label_root: ../data_preparation/data/yield_labels/multistate_pseudo
+  cdl_root: ../data_preparation/data/cdl_masks
+  imagery_root: ../data_preparation/data/HLS_Composites
+  counties_path: ../data_preparation/data/county_maps/selected_states_counties_2023.gpkg
+
+  # Chips whose HLS imagery has a corrupt DEFLATE tile -- these raise only when
+  # decoded, inside a DataLoader worker, killing the run hours in.
+  # Populated from scripts/scan_hls_corruption.py; see outputs/qc/.
+  #
+  # 2020-2024 scan (outputs/qc/hls_corruption_cornbelt5.json): 4 bad chips, IN.
+  # 2014-2024 scan (outputs/qc/hls_corruption_cornbelt5_longer.json, run
+  # 2026-08-24): 440 files / 967,352 window reads, 78 more bad chips, all in
+  # hls_soybeans_MD_2015_MAY.tif (62) and hls_soybeans_MD_2015_AUG.tif (24) --
+  # the same export batch. 0 unreadable files; nothing else in 11 years x 5
+  # states came back bad.
+  exclude_sample_ids:
+    - soybeans_IN_2021_r2464_c3360     # hls_soybeans_IN_2021_AUG.tif
+    - soybeans_IN_2021_r2464_c3584     # hls_soybeans_IN_2021_AUG.tif
+    - soybeans_IN_2022_r11648_c4928    # hls_soybeans_IN_2022_JUL.tif
+    - soybeans_IN_2022_r11648_c5152    # hls_soybeans_IN_2022_JUL.tif
+    - soybeans_MD_2015_r1120_c4256     # hls_soybeans_MD_2015_AUG.tif
+    - soybeans_MD_2015_r1120_c4480     # hls_soybeans_MD_2015_AUG.tif
+    - soybeans_MD_2015_r1120_c4704     # hls_soybeans_MD_2015_AUG.tif
+    - soybeans_MD_2015_r1120_c4928     # hls_soybeans_MD_2015_AUG.tif
+    - soybeans_MD_2015_r1120_c5152     # hls_soybeans_MD_2015_AUG.tif
+    - soybeans_MD_2015_r1120_c5824     # hls_soybeans_MD_2015_AUG.tif
+    - soybeans_MD_2015_r1120_c6048     # hls_soybeans_MD_2015_AUG.tif
+    - soybeans_MD_2015_r1120_c6272     # hls_soybeans_MD_2015_AUG.tif
+    - soybeans_MD_2015_r1792_c6272     # hls_soybeans_MD_2015_MAY.tif
+    - soybeans_MD_2015_r1792_c6496     # hls_soybeans_MD_2015_MAY.tif
+    - soybeans_MD_2015_r1792_c6944     # hls_soybeans_MD_2015_MAY.tif
+    - soybeans_MD_2015_r1792_c9408     # hls_soybeans_MD_2015_MAY.tif
+    - soybeans_MD_2015_r1792_c9632     # hls_soybeans_MD_2015_MAY.tif
+    - soybeans_MD_2015_r1792_c9856     # hls_soybeans_MD_2015_MAY.tif
+    - soybeans_MD_2015_r2016_c10304    # hls_soybeans_MD_2015_MAY.tif
+    - soybeans_MD_2015_r2016_c10528    # hls_soybeans_MD_2015_MAY.tif
+    - soybeans_MD_2015_r2016_c10752    # hls_soybeans_MD_2015_AUG.tif, hls_soybeans_MD_2015_MAY.tif
+    - soybeans_MD_2015_r2240_c10080    # hls_soybeans_MD_2015_MAY.tif
+    - soybeans_MD_2015_r2240_c10304    # hls_soybeans_MD_2015_MAY.tif
+    - soybeans_MD_2015_r2240_c10528    # hls_soybeans_MD_2015_MAY.tif
+    - soybeans_MD_2015_r2240_c10752    # hls_soybeans_MD_2015_MAY.tif
+    - soybeans_MD_2015_r2240_c5376     # hls_soybeans_MD_2015_AUG.tif, hls_soybeans_MD_2015_MAY.tif
+    - soybeans_MD_2015_r224_c9408      # hls_soybeans_MD_2015_MAY.tif
+    - soybeans_MD_2015_r224_c9632      # hls_soybeans_MD_2015_MAY.tif
+    - soybeans_MD_2015_r4032_c10528    # hls_soybeans_MD_2015_MAY.tif
+    - soybeans_MD_2015_r4032_c10752    # hls_soybeans_MD_2015_MAY.tif
+    - soybeans_MD_2015_r4032_c10976    # hls_soybeans_MD_2015_MAY.tif
+    - soybeans_MD_2015_r4032_c11200    # hls_soybeans_MD_2015_MAY.tif
+    - soybeans_MD_2015_r4256_c10080    # hls_soybeans_MD_2015_MAY.tif
+    - soybeans_MD_2015_r4256_c10528    # hls_soybeans_MD_2015_MAY.tif
+    - soybeans_MD_2015_r4256_c10752    # hls_soybeans_MD_2015_MAY.tif
+    - soybeans_MD_2015_r4256_c10976    # hls_soybeans_MD_2015_MAY.tif
+    - soybeans_MD_2015_r4256_c12320    # hls_soybeans_MD_2015_MAY.tif
+    - soybeans_MD_2015_r4256_c12768    # hls_soybeans_MD_2015_MAY.tif
+    - soybeans_MD_2015_r4256_c12992    # hls_soybeans_MD_2015_AUG.tif, hls_soybeans_MD_2015_MAY.tif
+    - soybeans_MD_2015_r4256_c8288     # hls_soybeans_MD_2015_MAY.tif
+    - soybeans_MD_2015_r4256_c9856     # hls_soybeans_MD_2015_MAY.tif
+    - soybeans_MD_2015_r4480_c10080    # hls_soybeans_MD_2015_AUG.tif, hls_soybeans_MD_2015_MAY.tif
+    - soybeans_MD_2015_r4480_c10304    # hls_soybeans_MD_2015_AUG.tif, hls_soybeans_MD_2015_MAY.tif
+    - soybeans_MD_2015_r4480_c10528    # hls_soybeans_MD_2015_AUG.tif, hls_soybeans_MD_2015_MAY.tif
+    - soybeans_MD_2015_r4480_c10752    # hls_soybeans_MD_2015_AUG.tif, hls_soybeans_MD_2015_MAY.tif
+    - soybeans_MD_2015_r4480_c10976    # hls_soybeans_MD_2015_AUG.tif, hls_soybeans_MD_2015_MAY.tif
+    - soybeans_MD_2015_r4480_c11200    # hls_soybeans_MD_2015_MAY.tif
+    - soybeans_MD_2015_r4480_c11424    # hls_soybeans_MD_2015_MAY.tif
+    - soybeans_MD_2015_r4480_c11648    # hls_soybeans_MD_2015_MAY.tif
+    - soybeans_MD_2015_r4480_c11872    # hls_soybeans_MD_2015_MAY.tif
+    - soybeans_MD_2015_r4480_c12096    # hls_soybeans_MD_2015_MAY.tif
+    - soybeans_MD_2015_r4480_c12320    # hls_soybeans_MD_2015_MAY.tif
+    - soybeans_MD_2015_r4480_c12544    # hls_soybeans_MD_2015_MAY.tif
+    - soybeans_MD_2015_r4480_c12768    # hls_soybeans_MD_2015_MAY.tif
+    - soybeans_MD_2015_r4704_c11424    # hls_soybeans_MD_2015_AUG.tif
+    - soybeans_MD_2015_r4704_c11648    # hls_soybeans_MD_2015_AUG.tif
+    - soybeans_MD_2015_r4704_c11872    # hls_soybeans_MD_2015_AUG.tif
+    - soybeans_MD_2015_r4704_c12096    # hls_soybeans_MD_2015_AUG.tif
+    - soybeans_MD_2015_r4704_c12320    # hls_soybeans_MD_2015_AUG.tif
+    - soybeans_MD_2015_r4704_c12544    # hls_soybeans_MD_2015_AUG.tif
+    - soybeans_MD_2015_r4704_c12768    # hls_soybeans_MD_2015_AUG.tif
+    - soybeans_MD_2015_r4704_c12992    # hls_soybeans_MD_2015_AUG.tif
+    - soybeans_MD_2015_r5152_c12544    # hls_soybeans_MD_2015_MAY.tif
+    - soybeans_MD_2015_r5152_c12768    # hls_soybeans_MD_2015_MAY.tif
+    - soybeans_MD_2015_r5376_c11424    # hls_soybeans_MD_2015_MAY.tif
+    - soybeans_MD_2015_r5376_c11648    # hls_soybeans_MD_2015_MAY.tif
+    - soybeans_MD_2015_r5376_c12544    # hls_soybeans_MD_2015_MAY.tif
+    - soybeans_MD_2015_r5376_c8512     # hls_soybeans_MD_2015_MAY.tif
+    - soybeans_MD_2015_r672_c7840      # hls_soybeans_MD_2015_MAY.tif
+    - soybeans_MD_2015_r672_c8064      # hls_soybeans_MD_2015_MAY.tif
+    - soybeans_MD_2015_r672_c8736      # hls_soybeans_MD_2015_MAY.tif
+    - soybeans_MD_2015_r672_c8960      # hls_soybeans_MD_2015_MAY.tif
+    - soybeans_MD_2015_r896_c10080     # hls_soybeans_MD_2015_MAY.tif
+    - soybeans_MD_2015_r896_c10304     # hls_soybeans_MD_2015_MAY.tif
+    - soybeans_MD_2015_r896_c6048      # hls_soybeans_MD_2015_MAY.tif
+    - soybeans_MD_2015_r896_c6272      # hls_soybeans_MD_2015_MAY.tif
+    - soybeans_MD_2015_r896_c6496      # hls_soybeans_MD_2015_MAY.tif
+    - soybeans_MD_2015_r896_c6720      # hls_soybeans_MD_2015_MAY.tif
+    - soybeans_MD_2015_r896_c6944      # hls_soybeans_MD_2015_MAY.tif
+    - soybeans_MD_2015_r896_c7168      # hls_soybeans_MD_2015_MAY.tif
+    - soybeans_MD_2015_r896_c7392      # hls_soybeans_MD_2015_MAY.tif
+    - soybeans_MD_2015_r896_c7616      # hls_soybeans_MD_2015_MAY.tif
+
+norm:
+  mode: fold_training_statistics
+  target_scaling: zscore
+  # 2,000 chips is far past convergence for 6 band means/stds: measured relative
+  # error 0.2-0.6% on band means and 3.4% on the target scale, against ~19 h for
+  # the full pass. Seeded, train-split only.
+  stats_max_chips: 2000
+  stats_seed: 0
+
+split:
+  policy: explicit_map
+  split_map_path: configs/splits/loyo_soybeans.yaml
+  test_year: 2024
+  val_years: [2023]
+
+model:
+  backbone_id: ibm-nasa-geospatial/Prithvi-EO-2.0-600M-TL
+  use_time_embed: true
+  use_location_embed: true      # ON, per request
+  finetune_mode: decoder_only   # 825M -> 194M trainable
+  out_blocks_one_based: [8, 16, 24, 32]
+  aux_block_one_based: 24
+  temporal_reducer: attention
+  decoder_channels: 1024        # paper value; kept -- the paper reached R2 0.81
+  ppm_bins: [1, 2, 3, 6]
+  use_auxiliary: true
+  head_dropout: 0.1             # paper value
+
+loss:
+  main: mse
+  aux_weight: 0.2
+
+train:
+  seed: 0
+  epochs: 30
+  warmup_epochs: 3              # 3 of 30 = 10%; cornbelt4's 5 of 20 (25%) meant
+                                # validation was still read during LR ramp-up.
+  early_stopping: true
+  early_stopping_patience: 10
+
+  # batch 8 keeps the favourable disk read pattern (measured 7.7 chips/s vs 5.9
+  # at batch 24 -- this box reads from a 7200 rpm HDD and is IO-bound, not
+  # compute-bound), while accum 3 restores the effective batch of 24.
+  batch_size: 8
+  grad_accum: 3
+  # 64 workers was TRIED AND REVERTED -- measure, don't extrapolate.
+  #
+  # The reasoning for 64 was: chip construction is ~7 s/chip and workers sat at
+  # 100% CPU, so 32 workers cap throughput at ~4.6 chips/s and doubling them
+  # should roughly double it. Measured result: 4.324 -> 4.448 samples/s, i.e.
+  # +3%, and epoch 0 took 6h12m against 6.4h before. Worker CPU was therefore
+  # NOT the binding constraint, and the per-chip-cost model that predicted 2.2x
+  # is wrong. The real limiter is still unidentified; do not raise this again
+  # without a throughput-vs-workers measurement to justify it.
+  #
+  # 32 also has 40 h / 6 epochs of stable runtime behind it, whereas the 64-worker
+  # run was killed with no traceback (see prefetch_factor below).
+  num_workers: 32
+  # 64 workers x prefetch 4 x 73.5 MiB/batch = 18.4 GiB of queue, against a
+  # `ulimit -l` (max locked memory) of 15.7 GiB on this box -- and pin_memory
+  # makes that queue page-locked, so it counts against exactly that cap. The run
+  # died silently, which is consistent with being killed rather than raising.
+  # At 32 workers x 2 the queue is 4.6 GiB, well inside the limit, and still
+  # buffers ~128 batches (~4 min at the observed rate) -- far more than needed to
+  # absorb the measured 5.9-9.2 s spread in per-chip build time.
+  prefetch_factor: 2
+  lr: 5.0e-6
+  min_lr: 1.0e-8
+  weight_decay: 0.3
+  # 22 inf gradients and 94 spikes above 10x median were observed unclipped in
+  # the cornbelt4 batch-8 run; fp16 has a narrower exponent range than bf16.
+  grad_clip: 1.0
+
+  precision: 16-mixed
+
+  ckpt_monitor: val/main_rmse_phys
+  ckpt_mode: min
+  periodic_ckpt_every_n_epochs: 3
+  periodic_ckpt_save_top_k: -1 
