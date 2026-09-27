@@ -1,0 +1,37 @@
+warning: `VIRTUAL_ENV=/home/cholab/LabMembers/Samar/EO-based-yield-prediction/data_preparation/.venv` does not match the project environment path `.venv` and will be ignored; use `--active` to target the active environment instead
+BARC 2014: 1,118 comparable px, 1,118 matched to a field
+
+field                             px    pred  actual   resid
+Central Farm_1-20B                29    51.7    77.8   -26.1
+Central Farm_1-14A                32    52.6    77.4   -24.8
+Central Farm_1-20A                 8    51.9    71.4   -19.6
+Central Farm_4-25                 95    34.1    70.6   -36.5
+Central Farm_1-14B                45    46.5    69.1   -22.6
+Central Farm_2-32A                93    54.0    67.8   -13.8
+Central Farm_2-71                172    37.9    67.5   -29.6
+Central Farm_1-14C                42    47.6    63.4   -15.8
+Central Farm_1-20C                12    49.2    61.8   -12.6
+Central Farm_2-51                 32    49.6    60.8   -11.1
+Central Farm_2-72                135    46.6    59.2   -12.7
+East Farm_5-23                   106    23.8    58.7   -34.9
+Central Farm_4-23A                56    47.5    52.6    -5.2
+Linkage Farm_EB-3                 93    41.4    51.7   -10.3
+Central Farm_4-16                 36    33.7    49.5   -15.8
+... and 2 more                
+
+FIELD-LEVEL METRICS (17 fields, >= 5 px each)
+  pred   mean/std : 42.60 / 9.47
+  actual mean/std : 61.27 / 11.19
+  [field]  n=17
+      bias  -18.674   MAE  18.674   RMSE  20.804
+      R2    -2.4572   r   +0.6170   %MAE  30.48
+  REFERENCE, best constant : 11.19 bu/ac   -> model is WORSE than a constant
+  pred_std / actual_std    : 0.846   (<<1 means a collapsed, near-flat prediction surface)
+
+PIXEL-LEVEL METRICS (same mask, resolution-limited -- secondary)
+  [pixel]  n=1118
+      bias  -20.445   MAE  21.303   RMSE  24.987
+      R2    -2.0201   r   +0.3533   %MAE  35.16
+
+wrote outputs/predictions/barc_refiner_from_farm018_hilr/field_aggregation/soybeans_BARC_2014_field_metrics.csv
+wrote outputs/predictions/barc_refiner_from_farm018_hilr/field_aggregation/soybeans_BARC_2014_field_metrics.png
