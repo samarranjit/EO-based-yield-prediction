@@ -1,0 +1,105 @@
+# Stage 1 of sub-field detail recovery on BARC: train ONLY DetailRefiner on top of
+# the frozen Corn Belt checkpoint, leave-one-year-out over all 11 BARC years.
+#
+#   uv run python -m farm_us.cli run-loyo --config configs/experiments/barc_refiner.yaml --real \
+#     init_from=outputs/runs/cornbelt5_soybeans_longer_time/test2024/checkpoints/farm-018-0.0000.ckpt
+#
+# What differs from barc_finetune.yaml, and why:
+#   detail_refiner + refiner_only   the 775M-parameter base stays exactly farm-018
+#       (weights frozen, BatchNorm/dropout held in eval); only a ~20k-parameter
+#       branch reading raw 30 m pixels trains. Zero-initialised, so at step 0 the
+#       predictions equal farm-018's.
+#   norm.inherit_init_stats         a frozen model must see the normalisation it was
+#       trained with; recomputing band/target stats on ~30 BARC chips would change
+#       the frozen encoder's inputs and break the step-0 equivalence.
+#   lr 1e-4, weight_decay 0.01      the refiner is fresh and tiny, unlike the
+#       borrowed decoder barc_finetune.yaml trained at 2e-7.
+#
+# To repeat this at county scale: same model/norm blocks, a national data block,
+# and init_from pointing at that run's checkpoint.
+#
+# Caveats carried into every result:
+#   * ~36 qualifying chips over 11 years: 2-4 per test/val year, so per-fold metrics
+#     are noisy. Pool field-level results across folds (scripts/barc_field_metrics.py).
+#   * farm-018 was trained on 2014-2022 Corn Belt pseudo-labels (MD included) and
+#     BARC lies in MD, so folds 2014-2022 are not held out from the BASE model.
+#     The measured BARC labels remain unseen in every fold.
+#
+# Architecture MUST match farm-018 (temporal_reducer: attention) or loading fails.
+experiment_name: barc_refiner_from_farm018
+
+data:
+  crop: SOYBEANS
+  states: [BARC]
+  years: [2014, 2015, 2016, 2017, 2018, 2019, 2020, 2021, 2022, 2023, 2024]
+  label_variant: measured
+  label_units: bu_ac
+  n_timesteps: 8
+  chip_size: 224
+  stride: 224
+  missing_month_policy: temporal_interp
+  min_crop_fraction: 0.0001        # mandatory for BARC; see barc_finetune.yaml
+  min_label_fraction: 0.0
+  label_root: ../data_preparation/data/barc_data/yield_labels
+  cdl_root: ../data_preparation/data/barc_data/cdl_masks
+  imagery_root: ../data_preparation/data/barc_data/HLS_Composites
+  counties_path: ../data_preparation/data/county_maps/selected_states_counties_2023.gpkg
+  manifest_path: outputs/manifests/manifest_barc.parquet
+
+norm:
+  mode: fold_training_statistics
+  target_scaling: zscore
+  inherit_init_stats: true
+
+split:
+  policy: explicit_map             # val = the year before test (loyo_soybeans.yaml)
+  split_map_path: configs/splits/loyo_soybeans.yaml
+  test_year: 2024                  # run-loyo sets this per fold
+  val_years: [2023]
+
+model:
+  backbone_id: ibm-nasa-geospatial/Prithvi-EO-2.0-600M-TL
+  pretrained: true
+  finetune_mode: refiner_only
+  detail_refiner: true
+  refiner_hidden: 16
+  use_time_embed: true
+  use_location_embed: true
+  embed_dim: 1280
+  depth: 32
+  out_blocks_one_based: [8, 16, 24, 32]
+  aux_block_one_based: 24
+  temporal_reducer: attention
+  decoder_channels: 1024
+  ppm_bins: [1, 2, 3, 6]
+  multiscale_fpn: false
+  head_dropout: 0.1
+  use_auxiliary: true
+  aux_channels: 256
+  final_activation: linear
+
+loss:
+  main: mse
+  huber_delta: 1.0
+  aux_weight: 0.2
+
+train:
+  seed: 0
+  batch_size: 4
+  grad_accum: 1
+  epochs: 40
+  lr: 1.0e-4
+  min_lr: 1.0e-6
+  warmup_epochs: 2
+  weight_decay: 0.01
+  scheduler: cosine
+  grad_clip: 1.0
+  precision: 16-mixed
+  early_stopping: true
+  early_stopping_patience: 8
+  ckpt_monitor: val/main_rmse_phys
+  ckpt_mode: min
+  periodic_ckpt_every_n_epochs: 10
+  num_workers: 4
+  prefetch_factor: 2
+  accelerator: auto

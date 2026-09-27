@@ -235,7 +235,8 @@ def cmd_evaluate(args):
 def cmd_run_loyo(args):
     from .training.run import run_loyo
 
-    run_loyo(_cfg(args), use_dummy="--real" not in sys.argv)
+    run_loyo(_cfg(args), use_dummy="--real" not in sys.argv,
+             init_from=_kv(args.overrides, "init_from"))
 
 
 def cmd_predict_raster(args):

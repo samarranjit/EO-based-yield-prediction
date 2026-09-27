@@ -67,6 +67,15 @@ class FarmLightningModule(L.LightningModule):
         loss, _ = self._step(batch, "train")
         return loss
 
+    def on_train_batch_start(self, batch, batch_idx):
+        # Lightning's evaluation loop saves and restores each submodule's
+        # `training` flag by assignment (_ModuleMode), bypassing FarmModel.train().
+        # Re-apply it before every training step so modules frozen by refiner_only
+        # really stay in eval mode -- otherwise their BatchNorm running statistics
+        # drift toward the fine-tuning set and the frozen prediction changes.
+        if self.cfg.model.finetune_mode == "refiner_only":
+            self.model.train()
+
     def validation_step(self, batch, _):
         loss, out = self._step(batch, "val")
         # accumulate de-standardized preds for physical metrics

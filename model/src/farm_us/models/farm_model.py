@@ -2,6 +2,9 @@
 
 Returns a dict:
     {"main": [B,1,H,W], "aux": [B,1,H,W] | None}
+
+With ``cfg.detail_refiner`` the main output is ``coarse + DetailRefiner(...)``;
+see models/detail_refiner.py.
 """
 
 from __future__ import annotations
@@ -11,6 +14,7 @@ import torch.nn as nn
 
 from ..config import ModelConfig
 from .auxiliary_head import AuxiliaryHead
+from .detail_refiner import DetailRefiner
 from .prithvi_adapter import PrithviAdapter
 from .regression_head import RegressionHead
 from .temporal_reducer import TemporalFeatureReducer
@@ -77,6 +81,32 @@ class FarmModel(nn.Module):
             self.aux_decoder = SmallUPerNetDecoder(d, cfg.aux_channels, cfg.ppm_bins)
             self.aux_head = AuxiliaryHead(cfg.aux_channels, chip_size, cfg.final_activation)
 
+        # Built LAST so the random init of every module above is unchanged.
+        self.refiner: DetailRefiner | None = None
+        if cfg.detail_refiner:
+            self.refiner = DetailRefiner(
+                in_channels=in_chans * n_timesteps,
+                feat_channels=self.head.body_channels,
+                hidden=cfg.refiner_hidden,
+            )
+        if cfg.finetune_mode == "refiner_only":
+            if self.refiner is None:
+                raise ValueError("finetune_mode=refiner_only requires detail_refiner=true")
+            for name, p in self.named_parameters():
+                p.requires_grad_(name.startswith("refiner."))
+
+    def train(self, mode: bool = True):
+        super().train(mode)
+        if mode and self.cfg.finetune_mode == "refiner_only":
+            # requires_grad=False freezes WEIGHTS, not BatchNorm running statistics
+            # or dropout. In train mode the frozen decoder/head BN stats would drift
+            # toward the small fine-tuning set and the coarse prediction would stop
+            # matching the loaded checkpoint. Keep all but the refiner in eval mode.
+            for name, module in self.named_children():
+                if name != "refiner":
+                    module.eval()
+        return self
+
     def parameter_counts(self) -> dict[str, int]:
         trainable = sum(p.numel() for p in self.parameters() if p.requires_grad)
         total = sum(p.numel() for p in self.parameters())
@@ -92,7 +122,11 @@ class FarmModel(nn.Module):
         feats5d = self.encoder(x, temporal_coords, location_coords)  # list [B,D,T,gh,gw]
         feats2d = [self.reducers[i](f) for i, f in enumerate(feats5d)]
         fused = self.decoder(feats2d)
-        main = self.head(fused, out_size=x.shape[-1])
+        if self.refiner is None:
+            main = self.head(fused, out_size=x.shape[-1])
+        else:
+            coarse, body = self.head(fused, out_size=x.shape[-1], return_body=True)
+            main = self.head.activate(coarse + self.refiner(x, body))
         out: dict[str, torch.Tensor | None] = {"main": main, "aux": None}
         if self.use_auxiliary and return_aux:
             aux_feat = self.aux_decoder(feats2d[self.aux_level])

@@ -185,7 +185,9 @@ class PrithviAdapter(nn.Module):
         elif self.finetune_mode == "frozen":
             for p in self.backbone.parameters():
                 p.requires_grad_(False)
-        elif self.finetune_mode == "decoder_only":
+        elif self.finetune_mode in ("decoder_only", "refiner_only"):
+            # refiner_only freezes the backbone exactly like decoder_only; FarmModel
+            # then freezes everything else except DetailRefiner.
             for p in self.backbone.parameters():
                 p.requires_grad_(False)
         else:

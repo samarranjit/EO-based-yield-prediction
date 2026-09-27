@@ -4,6 +4,9 @@ decoder_channels → 512 → 256 → 64 (3×3 conv + BN + ReLU + optional dropou
 → 1×1 projection to 1 channel → bilinear upsample to full resolution.
 Output activation is linear by default (continuous regression); a non-negative
 ``relu`` mode is available for inference-only clipping.
+
+``return_body=True`` also returns the 64-channel pre-projection features, used by
+models/detail_refiner.py.
 """
 
 from __future__ import annotations
@@ -37,13 +40,17 @@ class RegressionHead(nn.Module):
                 layers.append(nn.Dropout2d(dropout))
             c = h
         self.body = nn.Sequential(*layers)
+        self.body_channels = c
         self.project = nn.Conv2d(c, 1, kernel_size=1)
 
-    def forward(self, x: torch.Tensor, out_size: int | None = None) -> torch.Tensor:
-        x = self.body(x)
-        x = self.project(x)
+    def forward(self, x: torch.Tensor, out_size: int | None = None, return_body: bool = False):
+        body = self.body(x)
         size = out_size or self.out_size
-        x = F.interpolate(x, size=(size, size), mode="bilinear", align_corners=False)
-        if self.final_activation == "relu":
-            x = F.relu(x)
-        return x
+        y = F.interpolate(self.project(body), size=(size, size), mode="bilinear", align_corners=False)
+        if return_body:
+            # Pre-activation, so a residual can be added before activate().
+            return y, body
+        return self.activate(y)
+
+    def activate(self, y: torch.Tensor) -> torch.Tensor:
+        return F.relu(y) if self.final_activation == "relu" else y

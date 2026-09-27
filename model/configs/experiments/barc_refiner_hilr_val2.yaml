@@ -1,0 +1,134 @@
+# Identical to barc_refiner_hilr.yaml except for the VALIDATION YEARS: each fold
+# validates on the year before AND the year after the test year (the two nearest
+# years at the ends of the range) and trains on the remaining 8 years. See
+# configs/splits/loyo_soybeans_2val.yaml. Learning rate, schedule, early stopping and
+# every other setting are unchanged, so any difference in results is due to the
+# validation split alone.
+#
+#   uv run python -m farm_us.cli run-loyo --config configs/experiments/barc_refiner_hilr_val2.yaml --real \
+#     init_from=outputs/runs/cornbelt5_soybeans_longer_time/test2024/checkpoints/farm-018-0.0000.ckpt
+#
+# ---- original header of barc_refiner_hilr.yaml follows ----
+# DetailRefiner tuning, attempt 2: the refiner was UNDERTRAINED, not data-starved.
+#
+# Identical to barc_refiner.yaml except for the optimiser settings below. That file
+# is left untouched as the record of the completed 11-fold run in
+# outputs/runs/barc_refiner_from_farm018/ -- this one writes to a new directory.
+#
+#   uv run python -m farm_us.cli run-loyo --config configs/experiments/barc_refiner_hilr.yaml --real \
+#     init_from=outputs/runs/cornbelt5_soybeans_longer_time/test2024/checkpoints/farm-018-0.0000.ckpt
+#
+# EVIDENCE FROM THE FIRST RUN (all 11 folds)
+# ------------------------------------------
+# Mean spread ratio (pred_std / actual_std) was 0.128 -- the prediction surface
+# stayed nearly flat, which at first looked like a data-volume limit. It was not:
+#
+#   * Every fold ran the FULL 40-epoch budget; early stopping (patience 8) never
+#     fired in any of them, i.e. validation was still improving at the last epoch.
+#   * Validation improved only 3.5-10.3% over 40 epochs, monotonically, with no
+#     overfitting signature anywhere (val RMSE never turned upward).
+#   * The weights barely moved. pix.0 absmean 2.53e-02 and fuse.0 absmean 1.92e-02
+#     are within a few percent of their random initialisation; out.weight reached
+#     only ~1e-02 from its zero init.
+#
+# Cause: the zero-initialised output conv is a slow start by design -- gradient
+# reaching pix/fuse is proportional to out.weight, which begins at exactly zero.
+# At lr 1e-4 with weight_decay 0.01 actively pulling out.weight back toward zero,
+# the branch never woke up inside the epoch budget.
+#
+# WHAT CHANGED, AND WHY
+# ---------------------
+#   lr           1e-4 -> 1e-2   The refiner is a small, freshly initialised CNN and
+#                               the ONLY trainable module (20,801 params). That is
+#                               the normal range for such a module; 1e-4 was
+#                               inherited from full-model fine-tuning intuition and
+#                               is far too low here.
+#   weight_decay 0.01 -> 0.0    Decaying a zero-initialised output layer directly
+#                               opposes the wake-up it needs.
+#   epochs       40 -> 150      A cap, not a commitment: with a 100x learning rate
+#                               convergence should arrive far sooner. Patience is
+#                               raised 8 -> 15 so the larger budget is usable and a
+#                               genuine plateau (not noise on ~3 val chips) stops it.
+#
+# Nothing else changes. finetune_mode stays refiner_only, so all 775M backbone,
+# decoder and head parameters remain frozen and only the added CNN trains; the
+# higher learning rate cannot reach them (they are not in the optimiser at all).
+#
+# Architecture MUST match farm-018 (temporal_reducer: attention) or loading fails.
+experiment_name: barc_refiner_from_farm018_hilr_val2
+
+data:
+  crop: SOYBEANS
+  states: [BARC]
+  years: [2014, 2015, 2016, 2017, 2018, 2019, 2020, 2021, 2022, 2023, 2024]
+  label_variant: measured
+  label_units: bu_ac
+  n_timesteps: 8
+  chip_size: 224
+  stride: 224
+  missing_month_policy: temporal_interp
+  min_crop_fraction: 0.0001        # mandatory for BARC; see barc_finetune.yaml
+  min_label_fraction: 0.0
+  label_root: ../data_preparation/data/barc_data/yield_labels
+  cdl_root: ../data_preparation/data/barc_data/cdl_masks
+  imagery_root: ../data_preparation/data/barc_data/HLS_Composites
+  counties_path: ../data_preparation/data/county_maps/selected_states_counties_2023.gpkg
+  manifest_path: outputs/manifests/manifest_barc.parquet
+
+norm:
+  mode: fold_training_statistics
+  target_scaling: zscore
+  inherit_init_stats: true
+
+split:
+  policy: explicit_map             # val = the years before and after test (loyo_soybeans_2val.yaml)
+  split_map_path: configs/splits/loyo_soybeans_2val.yaml
+  test_year: 2024                  # run-loyo sets this per fold
+  val_years: [2022, 2023]
+
+model:
+  backbone_id: ibm-nasa-geospatial/Prithvi-EO-2.0-600M-TL
+  pretrained: true
+  finetune_mode: refiner_only      # 775M frozen; only the 20,801-param CNN trains
+  detail_refiner: true
+  refiner_hidden: 16
+  use_time_embed: true
+  use_location_embed: true
+  embed_dim: 1280
+  depth: 32
+  out_blocks_one_based: [8, 16, 24, 32]
+  aux_block_one_based: 24
+  temporal_reducer: attention
+  decoder_channels: 1024
+  ppm_bins: [1, 2, 3, 6]
+  multiscale_fpn: false
+  head_dropout: 0.1
+  use_auxiliary: true
+  aux_channels: 256
+  final_activation: linear
+
+loss:
+  main: mse
+  huber_delta: 1.0
+  aux_weight: 0.2
+
+train:
+  seed: 0
+  batch_size: 4
+  grad_accum: 1
+  epochs: 150                      # cap; early stopping should end folds sooner
+  lr: 1.0e-2                       # was 1e-4
+  min_lr: 1.0e-6
+  warmup_epochs: 2
+  weight_decay: 0.0                # was 0.01
+  scheduler: cosine
+  grad_clip: 1.0                   # keeps the larger steps stable
+  precision: 16-mixed
+  early_stopping: true
+  early_stopping_patience: 15      # was 8
+  ckpt_monitor: val/main_rmse_phys
+  ckpt_mode: min
+  periodic_ckpt_every_n_epochs: 10
+  num_workers: 4
+  prefetch_factor: 2
+  accelerator: auto

@@ -182,9 +182,34 @@ def load_or_compute_fold_stats(cfg: FarmConfig, dm: FarmDataModule, fold) -> Nor
     return stats
 
 
+def load_init_weights(lm: FarmLightningModule, path: str) -> None:
+    """Copy weights from checkpoint ``path`` into ``lm`` (weight-only transfer init).
+
+    Non-strict in exactly one way: tensors of a newly added DetailRefiner may be
+    absent from the source checkpoint -- they keep their zero-initialised output,
+    so the model starts out identical to the source. Any other missing key, or any
+    unexpected key, is an architecture mismatch and raises; skipping those
+    silently would train a partly random model while the logs claim it came from
+    ``path``.
+    """
+    import torch
+
+    state = torch.load(path, map_location="cpu", weights_only=False)["state_dict"]
+    missing, unexpected = lm.load_state_dict(state, strict=False)
+    other = [k for k in missing if not k.startswith("model.refiner.")]
+    if other or unexpected:
+        raise RuntimeError(
+            f"init_from={path} does not match the configured architecture -- "
+            f"missing: {other[:5]}, unexpected: {list(unexpected)[:5]}"
+        )
+    if missing:
+        logger.warning("init_from: %d DetailRefiner tensor(s) absent from %s -- starting "
+                       "from the zero-initialised branch", len(missing), path)
+
+
 def train_fold(cfg: FarmConfig, use_dummy: bool = True, dummy_embed_dim: int = 32,
                resume_from: str | None = None, init_from: str | None = None):
-    """Train one fold.
+    """Train one fold. Returns ``(lm, dm, stats, out_dir, best_checkpoint_path)``.
 
     ``resume_from`` and ``init_from`` both take a checkpoint but mean opposite
     things, and using the wrong one silently produces a broken run:
@@ -211,6 +236,11 @@ def train_fold(cfg: FarmConfig, use_dummy: bool = True, dummy_embed_dim: int = 3
             "(optimiser state restored), the other starts a new run from "
             "borrowed weights (optimiser fresh). See train_fold's docstring."
         )
+    if init_from and cfg.model.finetune_mode == "refiner_only" and not cfg.norm.inherit_init_stats:
+        raise ValueError(
+            "finetune_mode=refiner_only with init_from requires norm.inherit_init_stats=true: "
+            "the frozen model must be fed the normalisation it was trained with."
+        )
 
     seed_everything(cfg.train.seed)
     fold = resolve_fold(cfg)
@@ -218,7 +248,16 @@ def train_fold(cfg: FarmConfig, use_dummy: bool = True, dummy_embed_dim: int = 3
 
     dm = FarmDataModule(cfg, synthetic=use_dummy, n_synth=8)
     dm.setup()
-    stats = load_or_compute_fold_stats(cfg, dm, fold)
+    if init_from and cfg.norm.inherit_init_stats:
+        src = find_norm_stats(init_from)
+        if src is None:
+            raise FileNotFoundError(f"norm.inherit_init_stats: no norm_stats.json above {init_from}")
+        # The SOURCE model's statistics, not this fold's train split -- which is
+        # why the fold reuse guard in load_or_compute_fold_stats does not apply.
+        stats = NormStats.load(src)
+        logger.warning("INHERITED normalisation from %s (the init checkpoint's own statistics)", src)
+    else:
+        stats = load_or_compute_fold_stats(cfg, dm, fold)
     dm.apply_norm_stats(stats)
 
     out_dir = Path(cfg.train.output_dir) / cfg.experiment_name / f"test{fold.test_year}"
@@ -226,32 +265,28 @@ def train_fold(cfg: FarmConfig, use_dummy: bool = True, dummy_embed_dim: int = 3
     save_resolved_config(cfg, out_dir / "resolved_config.yaml")
     stats.save(out_dir / "norm_stats.json")
 
+    lm = FarmLightningModule(cfg, use_dummy=use_dummy, dummy_embed_dim=dummy_embed_dim)
     if init_from:
-        # Weight-only transfer init. load_from_checkpoint restores the module's
-        # weights and nothing else -- optimiser state lives in the Trainer and is
-        # only restored by fit(ckpt_path=...), which we deliberately do not pass
-        # below. It also validates the architecture: a checkpoint whose shapes
-        # disagree with cfg.model raises here rather than loading partially.
+        # Weight-only transfer init: optimiser state lives in the Trainer and is
+        # only restored by fit(ckpt_path=...), which is deliberately not passed.
         logger.warning(
             "INIT (weights only) from %s -- fresh optimiser, LR schedule and "
             "epoch counter; the source checkpoint is not modified", init_from,
         )
-        lm = FarmLightningModule.load_from_checkpoint(  # type: ignore[attr-defined]
-            init_from, cfg=cfg, use_dummy=use_dummy, dummy_embed_dim=dummy_embed_dim,
-        )
-    else:
-        lm = FarmLightningModule(cfg, use_dummy=use_dummy, dummy_embed_dim=dummy_embed_dim)
+        load_init_weights(lm, init_from)
     lm.set_target_scaler(stats.target_scaler())
 
     from .trainer import build_trainer
 
     trainer = build_trainer(cfg, fold, str(out_dir), stats.__dict__, manifest_fp="synthetic")
+    best_ckpt = None
     if isinstance(trainer, L.Trainer):
         if resume_from:
             logger.info("Resuming from checkpoint: %s", resume_from)
         trainer.fit(lm, dm.train_dataloader(), dm.val_dataloader(), ckpt_path=resume_from) # This is the most important line in this function, it runs the training loop using the Lightning trainer, model, and data module.
-        logger.info("Best checkpoint: %s", getattr(trainer.checkpoint_callback, "best_model_path", None))
-    return lm, dm, stats, out_dir
+        best_ckpt = getattr(trainer.checkpoint_callback, "best_model_path", None) or None
+        logger.info("Best checkpoint: %s", best_ckpt)
+    return lm, dm, stats, out_dir, best_ckpt
 
 
 def evaluate_fold(cfg: FarmConfig, checkpoint: str | None = None, use_dummy: bool = True):
@@ -312,7 +347,11 @@ def evaluate_fold(cfg: FarmConfig, checkpoint: str | None = None, use_dummy: boo
     return res
 
 
-def run_loyo(cfg: FarmConfig, use_dummy: bool = True):
+def run_loyo(cfg: FarmConfig, use_dummy: bool = True, init_from: str | None = None):
+    import gc
+
+    import torch
+
     results = {}
     for test_year in cfg.data.years:
         cfg.split.test_year = test_year
@@ -321,9 +360,24 @@ def run_loyo(cfg: FarmConfig, use_dummy: bool = True):
             max(y for y in cfg.data.years if y != test_year)
         ]
         try:
-            train_fold(cfg, use_dummy=use_dummy)
-            results[test_year] = evaluate_fold(cfg, use_dummy=use_dummy)
+            # Record the val years the fold ACTUALLY uses. Under explicit_map the
+            # split map overrides the list above inside resolve_fold, so without
+            # this each fold's resolved_config.yaml names a val year never used.
+            cfg.split.val_years = list(resolve_fold(cfg).val_years)
+            best_ckpt = train_fold(cfg, use_dummy=use_dummy, init_from=init_from)[-1]
+            # Score the fold's validation-selected checkpoint. Without one,
+            # evaluate_fold would build and score a FRESH, untrained model.
+            if best_ckpt is None:
+                raise RuntimeError("training produced no checkpoint to evaluate")
+            results[test_year] = evaluate_fold(cfg, checkpoint=best_ckpt, use_dummy=use_dummy)
         except Exception as e:  # keep going across folds
             logger.error("Fold %s failed: %s", test_year, e)
             results[test_year] = {"error": str(e)}
+        finally:
+            # Every fold builds a full model; release it before the next one.
+            gc.collect()
+            if torch.cuda.is_available():
+                torch.cuda.empty_cache()
+    for year, res in results.items():
+        logger.info("LOYO test %s: %s", year, res.get("error") or res.get("global_pixel"))
     return results

@@ -173,6 +173,13 @@ class NormConfig:
     #: would quietly outlive the data it describes.
     reuse_stats_from: str | None = None
 
+    #: With ``init_from``: load the SOURCE checkpoint's norm_stats.json instead of
+    #: computing or reusing this fold's. Needed whenever layers stay frozen -- a
+    #: frozen model must see exactly the normalisation it was trained with.
+    #: Required by finetune_mode=refiner_only. Not a leakage bypass: the
+    #: statistics describe the source model, whose weights are already reused.
+    inherit_init_stats: bool = False
+
 
 @dataclass
 class SplitConfig:
@@ -187,7 +194,7 @@ class SplitConfig:
 class ModelConfig:
     backbone_id: str = "ibm-nasa-geospatial/Prithvi-EO-2.0-600M-TL"
     pretrained: bool = True
-    # full | frozen | decoder_only
+    # full | frozen | decoder_only | refiner_only
     finetune_mode: str = "full"
     use_time_embed: bool = True
     use_location_embed: bool = True
@@ -207,6 +214,13 @@ class ModelConfig:
     use_auxiliary: bool = True
     aux_channels: int = 256
     final_activation: str = "linear"  # linear | relu (inference-only clip)
+
+    #: Sub-token detail refinement (models/detail_refiner.py). Off by default, so
+    #: every existing config and checkpoint behaves exactly as before. Pair with
+    #: finetune_mode=refiner_only + init_from to train ONLY the new branch on top
+    #: of a trained checkpoint -- the same recipe applies at any data scale.
+    detail_refiner: bool = False
+    refiner_hidden: int = 16
 
 
 @dataclass

@@ -112,22 +112,22 @@ def scatter(P: np.ndarray, A: np.ndarray, npx: np.ndarray, out_png: Path,
     import matplotlib.pyplot as plt
 
     fig, ax = plt.subplots(figsize=(6.2, 6.2))
-    # Measured on y, predicted on x -- matching scripts/county_aggregate.py. A
-    # point ABOVE the 1:1 line is a field the model UNDER-predicts; `bias` in the
-    # annotation is still pred - measured, so a positive bias sits below the line.
-    ax.scatter(P, A, s=np.clip(npx, 10, 160), alpha=0.75, edgecolor="none")
+    # Measured on x, predicted on y. A point ABOVE the 1:1 line is a field the
+    # model OVER-predicts, consistent with `bias` = pred - measured (positive bias
+    # sits above the line). Note scripts/county_aggregate.py uses the opposite axes.
+    ax.scatter(A, P, s=np.clip(npx, 10, 160), alpha=0.75, edgecolor="none")
     lo, hi = float(min(P.min(), A.min())), float(max(P.max(), A.max()))
     pad = 0.06 * (hi - lo if hi > lo else 1.0)
     ax.plot([lo - pad, hi + pad], [lo - pad, hi + pad], lw=1, ls="--", color="0.4", label="1:1")
     ax.set_xlim(lo - pad, hi + pad)
     ax.set_ylim(lo - pad, hi + pad)
-    ax.set_xlabel("Predicted field mean (bu/ac)")
-    ax.set_ylabel("Measured field mean (bu/ac)")
+    ax.set_xlabel("Measured field mean (bu/ac)")
+    ax.set_ylabel("Predicted field mean (bu/ac)")
     ax.set_title(title, fontsize=11)
     ax.legend(loc="upper left", frameon=False)
-    txt = (f"n = {m['n']} fields\nbias = {m['bias']:+.2f}  (pred − meas)\n"
-           f"MAE = {m['mae']:.2f}\nRMSE = {m['rmse']:.2f}\n"
-           f"R² = {m['r2']:.3f}\nr = {m['pearson_r']:+.3f}")
+    # R² here is pearson_r², not the 1:1 R² printed to the console.
+    txt = (f"n = {m['n']} fields\nMAE = {m['mae']:.2f}\n"
+           f"R² = {m['pearson_r'] ** 2:.3f}")
     ax.text(0.97, 0.03, txt, transform=ax.transAxes, ha="right", va="bottom",
             fontsize=9, family="monospace")
     ax.text(0.03, 0.03, "marker size ∝ pixels in field", transform=ax.transAxes,
