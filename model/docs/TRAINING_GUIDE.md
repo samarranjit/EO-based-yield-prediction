@@ -40,9 +40,54 @@ Set `train.strategy` and `train.devices`. The custom losses are distributed-safe
 uses **validation-fold** physical-unit RMSE only, never test data. `last.ckpt` is
 also kept for resume.
 
-## Resume
-`Trainer(..., )` + Lightning's `ckpt_path` (pass the saved `last.ckpt`). Full
-resolved config, norm stats, and provenance are saved per run for exact resume.
+## Resume vs transfer — `resume_from` and `init_from`
+
+Both take a checkpoint and they mean **opposite** things. Using the wrong one
+silently produces a broken run.
+
+| | `resume_from` | `init_from` |
+|---|---|---|
+| Restores optimiser moments, LR position, epoch counter | yes | **no** |
+| Use for | "the job died at epoch 13" | "fine-tune the Corn Belt model on BARC" |
+
+```bash
+# continue an interrupted run
+uv run python -m farm_us.cli train --config <cfg> --real resume_from=<run>/checkpoints/last.ckpt
+
+# NEW run from borrowed weights
+uv run python -m farm_us.cli train --config <cfg> --real \
+    init_from=outputs/runs/cornbelt5_soybeans_longer_time/test2024/checkpoints/farm-018-0.0000.ckpt \
+    norm.inherit_init_stats=true
+```
+
+**The trap**: `resume_from` on a checkpoint from epoch 18 of a 30-epoch cosine
+schedule resumes at epoch 19 with LR already decayed to near `min_lr`, so the model
+barely moves and the run stops almost immediately at `epochs`. Passing both raises.
+Neither modifies the source checkpoint.
+
+Three rules for `init_from`:
+
+1. **The architecture must match the source checkpoint exactly.** `load_init_weights`
+   is strict except for missing keys prefixed `model.refiner.`; anything else
+   missing or unexpected raises. `temporal_reducer: attention` vs `flatten_time`
+   alone will fail the load — copy the whole `model:` block from the config the
+   checkpoint was trained with. Adding a new branch? Zero-initialise its output so
+   step 0 reproduces the source, and extend that prefix list rather than loosening
+   the check.
+2. **Set `norm.inherit_init_stats: true`** whenever the base is frozen — it reuses
+   the source run's `norm_stats.json` instead of recomputing. Required with
+   `finetune_mode: refiner_only` (enforced in `train_fold`).
+3. **Never reuse stats across a change of `data.states`.** `norm.reuse_stats_from`'s
+   guard validates `train_years` only and will happily accept a stale file.
+
+Full resolved config, norm stats and provenance are saved per run either way.
+
+## Refiner-only fine-tuning
+`finetune_mode: refiner_only` + `detail_refiner: true` trains just the
+~20,801-parameter `DetailRefiner` and freezes the 775M base (weights **and**
+BatchNorm/dropout, held in `eval()`). Needs `lr 1e-2, weight_decay 0.0` — decay
+cancels a zero-initialised output layer as fast as it learns. See
+ARCHITECTURE.md and BARC_TRANSFER.md.
 
 ## Reproducibility
 `seed_everything(0)`; deterministic cudnn; per-run `resolved_config.yaml`,

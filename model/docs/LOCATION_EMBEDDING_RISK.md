@@ -40,6 +40,41 @@ non-TL backbone via `model.backbone_id`. The Lightning module passes
 
 ## Reporting
 State clearly in any results whether location embeddings were enabled, and always
-report the no-location ablation. Geographic generalization additionally requires
-a **leave-one-region-out** style evaluation (future work) — LOYO alone is
-insufficient.
+report the no-location ablation.
+
+## Measured: the ablation, and the spatial holdout (2026-09)
+
+**The embedding is not load-bearing.** Removing it made results slightly *better*
+— `pearson_r2` 0.4978 (no location) vs 0.4829 (full) on cornbelt4. Caveat: that run
+also carried new regularisation, so the two were not perfectly isolated.
+
+**But spatial generalisation is weak regardless.** `configs/experiments/spatial_holdout.yaml`
+applies `farm-018` zero-shot to states it never saw, in a year it never saw:
+
+| State | r² (vs 1:1) | `pearson_r2` | bias (bu/ac) |
+|---|---|---|---|
+| MO | −0.09 … 0.43 | 0.26 … 0.49 | +1.8 … +4.6 |
+| NE | **−0.35** | 0.164 | +5.31 |
+
+Against **0.799** in-sample. Report the states **separately** — the pooled metric
+is dominated by whichever state has the most soybean pixels. NE is the informative
+one: heavy centre-pivot irrigation keeps canopies green under stress, so it probes
+whether the model learned reflectance→yield or just "greener = more". The
+consistent positive bias says it over-predicts on new ground.
+
+## Implication for any new static covariate
+
+LOYO holds out a year but trains on all states, and 99.6% of test locations appear
+in training in other years. A **static** high-resolution raster — soil (POLARIS),
+elevation, any time-invariant layer — is therefore a location fingerprint with far
+more capacity than the lat/lon embedding this document was written about, and
+county yield is strongly persistent year to year.
+
+So: validate any such input under **both** LOYO and `spatial_holdout.yaml`.
+
+- Helps under both → real signal.
+- Helps under LOYO only → location memorisation, and you have quantified it.
+
+The gap between the two *is* the measurement. Without it the two cases are
+indistinguishable. This supersedes the earlier note calling region-holdout
+evaluation "future work" — the config exists and has been run.

@@ -36,12 +36,74 @@ Pixel · **field-level** · field-year · annual · mapped residuals. Field-leve
 needs a per-field id raster (`BarcConfig.field_id_raster`) — aggregate predicted
 pixels per field before scoring, analogous to county aggregation.
 
-## Status
-Real BARC rasters are **not on disk** in this environment. `barc_dataset.py`
-mirrors the national dataset interface with a synthetic fallback for pipeline
-tests; the experiment builder is verified on the dummy backbone. Point
-`BarcConfig.root` at measured 30 m BARC yield + matching HLS composites and
-implement a windowed reader mirroring `GeotiffMonthlyReader` to run for real.
+## Status (2026-09-26)
+
+Real BARC rasters **are on disk** and all experiments below have been run against
+the real 600M backbone. Earlier text in this file saying otherwise was from
+scaffolding.
+
+```
+data_preparation/data/barc_data/
+  yield_dataset/   barc_soybeans_yield_{2014..2024}_30m.tif   measured 30 m yield
+                   barc_field_id_map.{csv,json}               per-field ids
+  yield_labels/{year}/                                        reader-pattern tree
+  cdl_masks/       cdl_soybeans_BARC_{2014..2024}.tif
+  HLS_Composites/
+  BARC_region_shapefile/
+```
+
+`data.states: [BARC]` selects it; `min_crop_fraction: 0.0001` is **mandatory**
+(BARC chips are mostly non-crop). About **36 qualifying chips over 11 years, 2–4
+per fold** — per-fold metrics are noisy, so pool field-level results across folds
+with `scripts/barc_field_metrics.py`.
+
+## Fourth experiment: `refiner_only` (the one that worked)
+
+`configs/experiments/barc_refiner.yaml` / `barc_refiner_hilr.yaml` /
+`barc_refiner_hilr_val2.yaml`
+
+```bash
+uv run python -m farm_us.cli run-loyo --config configs/experiments/barc_refiner_hilr.yaml --real \
+  init_from=outputs/runs/cornbelt5_soybeans_longer_time/test2024/checkpoints/farm-018-0.0000.ckpt
+```
+
+The 775M base stays **exactly** farm-018 (frozen, BN/dropout in eval); only the
+20,801-parameter `DetailRefiner` trains. Requires `norm.inherit_init_stats: true`
+— a frozen model must see the normalisation it was trained with, and recomputing
+stats on ~36 chips would break the step-0 equivalence.
+
+### Measured results (pixel `pearson_r2`, measured labels)
+
+| Approach | Result |
+|---|---|
+| Zero-shot from farm-018 | r² −0.63, `pearson_r2` 0.023, bias **+10.9 bu/ac** |
+| Decoder fine-tune (`lr 2e-7`) | `pearson_r2` 0.001–0.25 across folds — no sub-field skill |
+| **`refiner_only`, 11-fold LOYO** | mean `pearson_r2` **0.465**, MAE 11.91 bu/ac |
+
+Per-fold range 0.125 (2014) to 0.682 (2017). Full table and per-year scatter plots:
+`outputs/comparisons/val1_vs_val2.md`.
+
+This is the project's main positive result: it says the binding constraint on
+sub-field accuracy was the **256-DOF tokenisation ceiling** (see ARCHITECTURE.md),
+not the encoder's representation. Predicted std was 1.09 vs measured 13.56 bu/ac
+before the branch existed.
+
+**Hyperparameters are load-bearing.** `lr 1e-2, weight_decay 0.0`. At the original
+`lr 1e-4, wd 0.01` weight decay pulled the zero-initialised output layer back
+toward zero as fast as it learned and the branch barely moved.
+
+### Validation-split variant
+`configs/splits/loyo_soybeans_2val.yaml` validates on the years before **and**
+after the test year (8 training years instead of 9), which fixed 2015 — a fold
+that validated on 2014 alone and stopped after 1 epoch. Over 11 folds it is
+roughly neutral: mean `pearson_r2` 0.453 (2 val) vs 0.465 (1 val). Prefer 1 val
+year unless a specific fold's early stopping is the problem.
+
+### Caveat carried into every BARC number
+farm-018 was trained on 2014–2022 Corn Belt pseudo-labels **with MD included**, and
+BARC is in MD, so folds 2014–2022 are not held out from the *base* model. The
+measured BARC labels are unseen in every fold, but the base model's exposure to
+MD pseudo-labels is not year-clean. State this when reporting.
 
 ## Resolution note (paper)
 The paper upsampled 10 m monitor data 10 m→5 m (112→224 px) to match the
