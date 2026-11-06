@@ -96,7 +96,7 @@ VI_TIF_PATH = Path(args.vi_tif_path)
 YEAR_OVERRIDE = None
 
 # Output directory.
-OUTPUT_DIR = Path("/home/cholab/LabMembers/Samar/EO-based-yield-prediction/data_preparation/data/pixel_distributed_yield/Intermediate")
+OUTPUT_DIR = Path("/home/cholab/LabMembers/Samar/EO-based-yield-prediction/data_preparation/data/pixel_distributed_yield/2014-19_intermediate")
 OUTPUT_DIR.mkdir(parents=True, exist_ok=True)
 
 # Redistribution settings.

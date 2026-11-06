@@ -19,6 +19,38 @@ from ..utils.geospatial import pixel_to_lonlat, tile_windows
 from .mosaic import MosaicAccumulator
 
 
+class _ExogenousInputs:
+    """Soil/weather model inputs for raster inference -- identical to training.
+
+    Uses the same read_exogenous_raw -> build_model_inputs path as
+    FarmChipDataset, so a raster prediction sees exactly the preprocessing the
+    model was trained with (nearest-sampled spatial weather, bilinear soil, the saved
+    normalization, the same NaN fill). Inert when no soil/weather is configured.
+    """
+
+    def __init__(self, cfg: FarmConfig, norm: NormStats) -> None:
+        from ..data.exogenous_readers import SoilReader, WeatherSampler, require_exogenous_stats
+
+        self.cfg, self.norm = cfg, norm
+        self.enabled = bool(cfg.data.soil_vars or cfg.data.weather_vars)
+        if self.enabled:
+            # Fail before the first tile, not after an hour of prediction.
+            require_exogenous_stats(cfg.data, norm)
+        self.soil = SoilReader(cfg.data) if cfg.data.soil_vars else None
+        self.weather = WeatherSampler(cfg.data) if cfg.data.weather_vars else None
+
+    def tensors(self, arr, year: int, device: str) -> dict:
+        """``{"soil": [1,S,H,W], "weather": [1,W,T,H,W]}`` for one chip (empty if disabled)."""
+        if not self.enabled:
+            return {}
+        from ..data.exogenous_readers import build_model_inputs, read_exogenous_raw
+
+        raw = read_exogenous_raw(self.cfg.data, year, arr.transform, arr.crs, arr.crop_mask,
+                                 self.soil, self.weather)
+        exo = build_model_inputs(self.cfg.data, self.norm, raw)
+        return {k: torch.from_numpy(v)[None].to(device) for k, v in exo.items()}
+
+
 @torch.no_grad()
 def predict_state_year(
     model,
@@ -39,6 +71,7 @@ def predict_state_year(
     windows = tile_windows(h, w, chip, stride)
     acc = MosaicAccumulator(h, w)
     crop_acc = np.zeros((h, w), dtype=bool)
+    exo_inputs = _ExogenousInputs(cfg, norm)
 
     for win in windows:
         arr = reader.read_chip(state, year, win)
@@ -55,7 +88,7 @@ def predict_state_year(
             lon, lat = pixel_to_lonlat(arr.transform, chip / 2, chip / 2, arr.crs)
             lc = torch.from_numpy(location_coords(lat, lon))[None].to(device)
 
-        out = model(x, tc, lc, return_aux=False)
+        out = model(x, tc, lc, return_aux=False, **exo_inputs.tensors(arr, year, device))
         pred = out["main"][0, 0].float().cpu().numpy()
         pred = scaler.inverse(pred)
         acc.add(pred, win)
@@ -125,6 +158,7 @@ def predict_and_compare_test_year(
     # chip's mask erase an earlier one's on those seams.
     crop_acc = np.zeros((h, w), dtype=bool)
     comparison_mask = np.zeros((h, w), dtype=bool)
+    exo_inputs = _ExogenousInputs(cfg, norm)
 
     for row in df.itertuples():
         win = ChipWindow(int(row.row_off), int(row.col_off), chip, chip)
@@ -141,7 +175,7 @@ def predict_and_compare_test_year(
             lon, lat = pixel_to_lonlat(arr.transform, chip / 2, chip / 2, arr.crs)
             lc = torch.from_numpy(location_coords(lat, lon))[None].to(device)
 
-        out = model(x, tc, lc, return_aux=False)
+        out = model(x, tc, lc, return_aux=False, **exo_inputs.tensors(arr, year, device))
         pred = scaler.inverse(out["main"][0, 0].float().cpu().numpy())
 
         rs, cs = win.as_slices()

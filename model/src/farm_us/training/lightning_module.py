@@ -10,7 +10,7 @@ import torch
 
 from ..config import FarmConfig
 from ..models.farm_model import FarmModel
-from .losses import build_loss
+from .losses import build_loss, masked_mse
 from .metrics import TargetScaler, regression_metrics
 
 
@@ -26,11 +26,18 @@ class FarmLightningModule(L.LightningModule):
             in_chans=len(cfg.data.band_order),
             use_dummy=use_dummy,
             dummy_embed_dim=dummy_embed_dim,
+            # Derived from the data config rather than duplicated in ModelConfig,
+            # so the branch's input width can never drift from what the data
+            # pipeline actually loads (see ModelConfig.exogenous_refiner).
+            n_soil=len(cfg.data.soil_vars),
+            n_weather=len(cfg.data.weather_vars),
         )
         self.loss_fn = build_loss(cfg.loss.main, cfg.loss.huber_delta)
         self.aux_weight = cfg.loss.aux_weight
         self.scaler = TargetScaler(mode=cfg.norm.target_scaling)
         self._val_buf: list[tuple[np.ndarray, np.ndarray, np.ndarray]] = []
+        self._train_sse_z = 0.0
+        self._train_n_valid = 0.0
 
     def set_target_scaler(self, scaler: TargetScaler) -> None:
         self.scaler = scaler
@@ -42,6 +49,8 @@ class FarmLightningModule(L.LightningModule):
             batch.get("temporal_coords") if self.cfg.model.use_time_embed else None,
             batch.get("location_coords") if self.cfg.model.use_location_embed else None,
             return_aux=return_aux,
+            soil=batch.get("soil"),
+            weather=batch.get("weather"),
         )
 
     def _step(self, batch, stage: str):
@@ -59,6 +68,21 @@ class FarmLightningModule(L.LightningModule):
 
         self.log(f"{stage}/loss", total, prog_bar=True, batch_size=target.shape[0])
         self.log(f"{stage}/valid_px", n_valid.float(), batch_size=target.shape[0])
+        if stage == "train" and n_valid >= 1:
+            # Training RMSE in physical units (bu/ac) for TensorBoard. Computed on the
+            # main head only, as masked MSE regardless of cfg.loss.main (so it stays an
+            # RMSE if the loss is huber/mae), then un-standardized: RMSE scales with the
+            # target scaler's `scale` (the shift `center` cancels in a difference). Skipped
+            # for batches with no valid pixels. Validation already logs the exact pooled
+            # val/main_rmse_phys once per epoch (on_validation_epoch_end), so it is not
+            # repeated here -- a second val/main_rmse_phys would collide with that key.
+            with torch.no_grad():
+                mse_z, n_px = masked_mse(out["main"].detach().float(), target.float(), mask)
+                scale = 1.0 if self.scaler.mode == "none" else self.scaler.scale
+                self.log("train/main_rmse_phys", mse_z.sqrt() * scale, prog_bar=False,
+                         batch_size=target.shape[0])
+                self._train_sse_z += float(mse_z) * float(n_px)
+                self._train_n_valid += float(n_px)
         if not torch.isfinite(total):
             self.log(f"{stage}/nan_loss", 1.0, batch_size=target.shape[0])
         return total, out
@@ -70,11 +94,26 @@ class FarmLightningModule(L.LightningModule):
     def on_train_batch_start(self, batch, batch_idx):
         # Lightning's evaluation loop saves and restores each submodule's
         # `training` flag by assignment (_ModuleMode), bypassing FarmModel.train().
-        # Re-apply it before every training step so modules frozen by refiner_only
-        # really stay in eval mode -- otherwise their BatchNorm running statistics
-        # drift toward the fine-tuning set and the frozen prediction changes.
-        if self.cfg.model.finetune_mode == "refiner_only":
+        # Re-apply it before every training step so modules frozen by a solo-branch
+        # finetune_mode (refiner_only / exo_refiner_only) really stay in eval mode
+        # -- otherwise their BatchNorm running statistics drift toward the
+        # fine-tuning set and the frozen prediction changes.
+        if self.cfg.model.finetune_mode in FarmModel._SOLO_BRANCH_MODES:
             self.model.train()
+
+    def on_train_epoch_start(self):
+        self._train_sse_z = 0.0
+        self._train_n_valid = 0.0
+
+    def on_train_epoch_end(self):
+        # Pooled over all valid pixels, the same formula as val/main_rmse_phys, so the
+        # two form one pair of curves. Unlike val, it is measured during training:
+        # weights are still changing, with dropout and augmentation active.
+        if self._train_n_valid < 1:
+            return
+        scale = 1.0 if self.scaler.mode == "none" else self.scaler.scale
+        self.log("train/main_rmse_phys_epoch",
+                 math.sqrt(self._train_sse_z / self._train_n_valid) * scale)
 
     def validation_step(self, batch, _):
         loss, out = self._step(batch, "val")

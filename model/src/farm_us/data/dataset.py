@@ -24,7 +24,7 @@ from ..config import STATE_FIPS, FarmConfig
 from ..utils.logging import get_logger
 from . import masks as M
 from .compositing import location_coords, temporal_coords
-from .normalization import NormStats, normalize_image
+from .normalization import WEATHER_STATS_LAYOUT, NormStats, normalize_image
 from .transforms import AlignedAugment
 
 logger = get_logger(__name__)
@@ -87,6 +87,8 @@ class SyntheticFarmDataset(Dataset):
         seed: int = 0,
         invalid_fraction: float = 0.2,
         missing_month: bool = False,
+        n_soil: int = 0,
+        n_weather: int = 0,
     ) -> None:
         self.n = n
         self.n_bands = n_bands
@@ -95,8 +97,13 @@ class SyntheticFarmDataset(Dataset):
         self.year = year
         self.invalid_fraction = invalid_fraction
         self.missing_month = missing_month
+        self.n_soil = n_soil
+        self.n_weather = n_weather
         self.rng = np.random.default_rng(seed)
         self._items = [self._make(i) for i in range(n)]
+        #: Same contract as FarmChipDataset.return_raw_exogenous, so the stats
+        #: code in training/run.py has one path, exercised by the synthetic CI run.
+        self.return_raw_exogenous = False
 
     def _make(self, i: int) -> dict:
         rng = np.random.default_rng(1000 + i)
@@ -115,15 +122,29 @@ class SyntheticFarmDataset(Dataset):
         if self.missing_month:
             image[:, 1] = np.nan
             month_valid[1] = False
-        return {
+        item = {
             "image": image, "label": label, "crop_mask": crop,
             "label_mask": label_mask, "month_valid": month_valid,
             "state": "IA", "year": self.year, "lat": 42.0, "lon": -93.5,
             "sample_id": f"synth_{i}",
         }
+        # Deterministic synthetic exogenous covariates -- only exercised when a
+        # smoke config actually configures soil_vars/weather_vars, so the
+        # default (n_soil=n_weather=0) path stays byte-identical to before.
+        if self.n_soil:
+            item["soil"] = rng.normal(0.0, 1.0, size=(self.n_soil, H, W)).astype(np.float32)
+        if self.n_weather:
+            item["weather"] = rng.normal(0.0, 1.0, size=(self.n_weather, T, H, W)).astype(np.float32)
+        return item
 
     def __len__(self) -> int:
         return self.n
+
+    def exogenous_raw(self, i: int) -> dict:
+        """Same contract as FarmChipDataset.exogenous_raw (synthetic arrays are raw)."""
+        s = self._items[i]
+        return {"soil_raw": s.get("soil"), "weather_raw": s.get("weather"),
+                "exo_valid": s["crop_mask"] & np.isfinite(s["label"])}
 
     def __getitem__(self, i: int) -> dict:
         s = self._items[i]
@@ -139,6 +160,22 @@ class SyntheticFarmDataset(Dataset):
             "location_coords": location_coords(s["lat"], s["lon"]),
             "year": s["year"], "state": s["state"], "sample_id": s["sample_id"],
         }
+        # Model inputs are NaN-filled, exactly as FarmChipDataset's are (via
+        # build_model_inputs) -- the model never receives NaN. Only the *_raw
+        # outputs below keep NaN, for the statistics pass. Keeping the synthetic
+        # contract identical to the real one is what lets the synthetic tests
+        # catch statistics computed from the wrong (filled) arrays.
+        if "soil" in s:
+            out["soil"] = np.nan_to_num(s["soil"], nan=0.0)
+        if "weather" in s:
+            out["weather"] = np.nan_to_num(s["weather"], nan=0.0)
+        if self.return_raw_exogenous and ("soil" in s or "weather" in s):
+            raw = self.exogenous_raw(i)
+            out["exo_valid"] = raw["exo_valid"]
+            if raw["soil_raw"] is not None:
+                out["soil_raw"] = raw["soil_raw"]
+            if raw["weather_raw"] is not None:
+                out["weather_raw"] = raw["weather_raw"]
         return _to_tensor(out)
 
 
@@ -166,18 +203,58 @@ class FarmChipDataset(Dataset):
         norm_stats: NormStats,
         augment: bool = False,
     ) -> None:
+        from .exogenous_readers import SoilReader, WeatherSampler
+
         self.records = records
         self.cfg = cfg
         self.reader = reader
         self.norm = norm_stats
         self.scaler = norm_stats.target_scaler()
         self.augment = AlignedAugment(cfg.augment) if augment else None
+        # These hold only paths and variable names -- every file is opened and
+        # closed inside a single read (see data/exogenous_readers.py) -- so they
+        # are safe to build here, before DataLoader workers fork.
+        self._soil_reader = SoilReader(cfg.data) if cfg.data.soil_vars else None
+        self._weather_sampler = WeatherSampler(cfg.data) if cfg.data.weather_vars else None
+        #: When True, __getitem__ additionally returns the RAW (un-normalized,
+        #: NaN-preserving, un-augmented) soil/weather and their validity mask, so
+        #: training/run.py:compute_fold_stats can compute soil/weather statistics
+        #: from the same chip read it already makes for the band statistics,
+        #: instead of reading every chip a second time.
+        self.return_raw_exogenous = False
 
     def __len__(self) -> int:
         return len(self.records)
 
+    @property
+    def _has_exogenous(self) -> bool:
+        return bool(self.cfg.data.soil_vars or self.cfg.data.weather_vars)
+
+    def _read_exogenous_raw(self, r: SampleRecord, transform, crs, crop_mask) -> dict:
+        from .exogenous_readers import read_exogenous_raw
+
+        return read_exogenous_raw(self.cfg.data, r.year, transform, crs, crop_mask,
+                                  self._soil_reader, self._weather_sampler)
+
+    def exogenous_raw(self, i: int) -> dict:
+        """RAW soil/weather + validity mask for chip ``i``, WITHOUT reading HLS.
+
+        Reads the label window and CDL mask (for the chip grid and the valid
+        mask) plus soil/weather -- never the 8 monthly HLS rasters that dominate
+        a full __getitem__. Used by the soil/weather-only statistics pass.
+        """
+        from ..utils.geospatial import ChipWindow
+
+        r = self.records[i]
+        win = ChipWindow(r.row_off, r.col_off, cfg_chip(self.cfg), cfg_chip(self.cfg))
+        grid = self.reader.read_label_and_crop(r.state, r.year, win)
+        raw = self._read_exogenous_raw(r, grid.transform, grid.crs, grid.crop_mask)
+        valid = grid.crop_mask & M.label_valid_mask(grid.label, self.cfg.data.nodata)
+        return {"soil_raw": raw["soil"], "weather_raw": raw["weather"], "exo_valid": valid}
+
     def __getitem__(self, i: int) -> dict:
         from ..utils.geospatial import ChipWindow
+        from .exogenous_readers import build_model_inputs
 
         r = self.records[i]
         win = ChipWindow(r.row_off, r.col_off, cfg_chip(self.cfg), cfg_chip(self.cfg))
@@ -200,6 +277,18 @@ class FarmChipDataset(Dataset):
             "label": label_std[None].astype(np.float32),
             "crop_mask": chip.crop_mask, "label_mask": label_valid, "valid_mask": hls_valid,
         }
+
+        # Soil/weather: read RAW (NaN-preserving), then normalize + NaN-fill for
+        # the model. build_model_inputs raises if the statistics lack a
+        # configured group -- there is no silent identity fallback.
+        raw = exo = None
+        if self._has_exogenous:
+            raw = self._read_exogenous_raw(r, chip.transform, chip.crs, chip.crop_mask)
+            exo = build_model_inputs(self.cfg.data, self.norm, raw)
+            # Both covariates share the image grid. Spatial augmentation must
+            # flip their last two axes in lockstep with image, labels and masks.
+            sample.update(exo)
+
         if self.augment is not None:
             sample = self.augment(sample)
             mask = M.combine_masks(sample["crop_mask"], sample["label_mask"], sample["valid_mask"])
@@ -212,6 +301,20 @@ class FarmChipDataset(Dataset):
             "location_coords": location_coords(r.lat, r.lon),
             "year": r.year, "state": r.state, "sample_id": r.sample_id,
         }
+        if "soil" in sample:
+            out["soil"] = sample["soil"].astype(np.float32)
+        if "weather" in sample:
+            out["weather"] = sample["weather"].astype(np.float32)
+
+        if self.return_raw_exogenous and raw is not None:
+            # Un-augmented: flips do not change a mean or std, and the image-only
+            # Gaussian noise never touches soil/weather.
+            out["exo_valid"] = chip.crop_mask & label_valid
+            if raw["soil"] is not None:
+                out["soil_raw"] = raw["soil"]
+            if raw["weather"] is not None:
+                out["weather_raw"] = raw["weather"]
+
         return _to_tensor(out)
 
 
@@ -370,9 +473,14 @@ class FarmDataModule:
     def setup(self) -> None:
         if self.synthetic:
             T = self.cfg.data.n_timesteps
-            self.train_ds = SyntheticFarmDataset(self.n_synth, n_timesteps=T, year=2019, seed=0)
-            self.val_ds = SyntheticFarmDataset(max(2, self.n_synth // 2), n_timesteps=T, year=self.cfg.split.val_years[0], seed=1)
-            self.test_ds = SyntheticFarmDataset(max(2, self.n_synth // 2), n_timesteps=T, year=self.cfg.split.test_year, seed=2)
+            n_soil = len(self.cfg.data.soil_vars)
+            n_weather = len(self.cfg.data.weather_vars)
+            self.train_ds = SyntheticFarmDataset(self.n_synth, n_timesteps=T, year=2019, seed=0,
+                                                 n_soil=n_soil, n_weather=n_weather)
+            self.val_ds = SyntheticFarmDataset(max(2, self.n_synth // 2), n_timesteps=T, year=self.cfg.split.val_years[0], seed=1,
+                                               n_soil=n_soil, n_weather=n_weather)
+            self.test_ds = SyntheticFarmDataset(max(2, self.n_synth // 2), n_timesteps=T, year=self.cfg.split.test_year, seed=2,
+                                                n_soil=n_soil, n_weather=n_weather)
         else:
             self._setup_real()
 
@@ -400,10 +508,30 @@ class FarmDataModule:
                           policy=cfg.split.policy, split_map=smap)
 
         reader = build_reader(cfg.data)
+        if cfg.data.soil_vars or cfg.data.weather_vars:
+            # Every configured soil/weather file must exist for EVERY configured
+            # year (train, val and test) before any expensive pass starts. A
+            # missing month would otherwise reach the model as mean-imputed
+            # zeros for a whole year -- trains fine, looks fine, quietly wrong.
+            from .exogenous_readers import check_exogenous_files
+
+            check_exogenous_files(cfg.data, cfg.data.years)
+        # Identity soil/weather stats mirror the band_mean=0/band_std=1 trick:
+        # they let __getitem__ run before real statistics exist. The statistics
+        # pass itself never uses the normalized soil/weather -- it reads the RAW
+        # values (return_raw_exogenous / exogenous_raw), because NaN-filling
+        # before computing statistics biases them.
         identity_stats = NormStats(
             band_mean=[0.0] * len(cfg.data.band_order),
             band_std=[1.0] * len(cfg.data.band_order),
             target={"mode": "none"}, mode="identity", train_years=[],
+            soil_mean=[0.0] * len(cfg.data.soil_vars) if cfg.data.soil_vars else None,
+            soil_std=[1.0] * len(cfg.data.soil_vars) if cfg.data.soil_vars else None,
+            weather_mean=[0.0] * len(cfg.data.weather_vars) if cfg.data.weather_vars else None,
+            weather_std=[1.0] * len(cfg.data.weather_vars) if cfg.data.weather_vars else None,
+            soil_vars=list(cfg.data.soil_vars) or None,
+            weather_vars=list(cfg.data.weather_vars) or None,
+            weather_layout=WEATHER_STATS_LAYOUT if cfg.data.weather_vars else None,
         )
 
         def records_for(years):
@@ -429,7 +557,15 @@ class FarmDataModule:
         this applies the measured stats before any dataloader is actually
         iterated for training/eval. No-op for the synthetic path (those
         datasets never normalize internally).
+
+        Refuses statistics that do not cover the configured soil/weather
+        variables by name and order -- checked on the synthetic path too, so the
+        CI smoke run exercises the same guard a real run relies on.
         """
+        if self.cfg.data.soil_vars or self.cfg.data.weather_vars:
+            from .exogenous_readers import require_exogenous_stats
+
+            require_exogenous_stats(self.cfg.data, stats)
         if self.synthetic:
             return
         scaler = stats.target_scaler()

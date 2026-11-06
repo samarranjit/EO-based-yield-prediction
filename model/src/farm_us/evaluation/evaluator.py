@@ -26,9 +26,13 @@ def evaluate_loader(model, loader, scaler: TargetScaler, device: str = "cpu") ->
         x = batch["image"].to(device)
         tc = batch.get("temporal_coords")
         lc = batch.get("location_coords")
+        soil = batch.get("soil")
+        weather = batch.get("weather")
         tc = tc.to(device) if isinstance(tc, torch.Tensor) else None
         lc = lc.to(device) if isinstance(lc, torch.Tensor) else None
-        out = model(x, tc, lc, return_aux=False)
+        soil = soil.to(device) if isinstance(soil, torch.Tensor) else None
+        weather = weather.to(device) if isinstance(weather, torch.Tensor) else None
+        out = model(x, tc, lc, return_aux=False, soil=soil, weather=weather)
         pred = scaler.inverse(out["main"].float().cpu().numpy())
         tgt = scaler.inverse(batch["label"].float().cpu().numpy())
         mask = batch["mask"].cpu().numpy() > 0.5

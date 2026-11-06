@@ -149,6 +149,86 @@ Measured result on BARC (measured 30 m labels, 11-fold LOYO): mean pixel
 `pearson_r2` **0.465**, against 0.001–0.25 for fine-tuning the decoder instead.
 Predicted std was 1.09 vs measured 13.56 bu/ac before the branch existed.
 
+## ExogenousRefiner (`models/exogenous_refiner.py`)
+
+**The current refiner branch — it supersedes DetailRefiner rather than stacking
+on it.** It contains DetailRefiner's entire raw-imagery path, unchanged in
+structure, and adds soil (POLARIS) and weather (PRISM) on top:
+
+```
+main = coarse_head_prediction + ExogenousRefiner(raw_image, soil, weather, head_body_64ch)
+                                                              [if cfg.exogenous_refiner]
+main = coarse_head_prediction + DetailRefiner(raw_image, head_body_64ch)
+                                                              [if cfg.detail_refiner — legacy]
+```
+
+The two are **mutually exclusive**: `FarmModel.__init__` raises if both are set,
+before the encoder is built. Two image-derived residuals on one coarse
+prediction would double-count the sub-token signal and split its gradient
+across branches that cannot see each other
+(`test_both_refiners_at_once_is_rejected`).
+
+With `data.soil_vars` and `data.weather_vars` both empty, `ExogenousRefiner` is
+structurally identical to `DetailRefiner` — same parameter shapes, same output
+from the same weights, asserted by
+`test_exo_refiner_without_covariates_reproduces_detail_refiner`. That is the
+clean **image-only ablation**: run it and the full covariate version on the same
+fold, and the difference is exactly what soil and weather contribute.
+
+`DetailRefiner` is kept byte-for-byte only so the BARC `refiner_only` runs stay
+reproducible from their checkpoints. Note a BARC DetailRefiner checkpoint cannot
+`init_from` into an ExogenousRefiner model — its `model.refiner.*` keys are
+*unexpected* there and `load_init_weights` raises, correctly, since soil
+channels widen `pix.0`. Start exogenous runs from a branch-free checkpoint such
+as farm-018, or from scratch.
+
+**Soil and weather both preserve their spatial grids:**
+
+| Covariate | Model input | Entry point |
+|---|---|---|
+| Soil, nominal 30 m | `[B,S,H,W]`, bilinear alignment to the chip | Concatenate with standardized HLS into spatial CNN |
+| Weather, nominal 800 m | `[B,W,T,H,W]`, nearest-neighbor alignment | Pointwise 1×1 weather network produces `[B,hidden,H,W]` scale and shift maps |
+
+Each 30 m weather pixel repeats the value of the source PRISM cell containing
+its centre; no chip averaging or smoothing remains. Flattening W×T preserves
+variable/month order. Weather conditioning is `h * (1 + scale_map) + shift_map`.
+Both soil and weather flip together with HLS and labels during augmentation.
+Readers open/close files for each read, avoiding shared GDAL handles in workers.
+See [EXOGENOUS_REFINER.md](EXOGENOUS_REFINER.md) for the full data contract.
+
+Training and raster inference share one preprocessing path —
+`read_exogenous_raw` (raw, NaN-preserving) → `build_model_inputs` (z-score with the
+run's saved statistics, then fill missing with 0 = the training mean) — used by
+`FarmChipDataset` and by `evaluation/inference.py`, so a raster prediction sees
+exactly the inputs the model was trained on.
+
+Same zero-init contract as DetailRefiner: `out`'s weight/bias start at zero, and
+additionally the FiLM head's `to_scale`/`to_shift` layers start at zero (so
+`1+scale=1, shift=0` — weather conditioning starts as the identity). At step 0
+the branch is a provable no-op regardless of what soil/weather contain,
+verified directly (`test_exo_refiner_noop_holds_for_arbitrary_soil_and_weather_values`
+feeds values differing by 100× and asserts bit-identical output). Either
+covariate is independently optional — `n_soil=0` or `n_weather=0` skips that
+half of the branch entirely rather than passing zeros through it.
+
+Normalization statistics for soil/weather are computed from RAW values with
+missing values excluded, record per-variable coverage and the variable names in
+order, and — under `init_from` — are **preserved** when they already match the
+configured variables and spatial weather layout (a transferred branch must keep its input scaling) and
+computed only when absent. See CLAUDE.md's invariants and
+`training/run.py:ensure_exogenous_stats`.
+
+No status/results section here yet — as of this writing the branch is
+implemented and pipeline-tested (synthetic CI suite, tiny-GeoTIFF tests of the
+production data path, and a real-data check against actual POLARIS/PRISM/CDL
+files, `scripts/smoke_test_exogenous_readers.py`), but no training run has been
+launched. See `configs/experiments/cornbelt5_soil_weather.yaml`
+for the planned Stage 1 (county-scale, frozen base) experiment and its header
+comment for the full rationale, including why LOYO alone cannot validate this
+covariate (POLARIS is a static raster — a location fingerprint far richer than
+lat/lon; see `docs/LOCATION_EMBEDDING_RISK.md`) and what `spatial_holdout.yaml`
+comparison is needed before trusting a positive result.
+
 ## Loss
 `L_MSE = mean over valid pixels of (y − ŷ)²`; Huber optional;
 `L_total = L_main + 0.2 · L_aux`. All masked to valid crop∧label∧HLS pixels.

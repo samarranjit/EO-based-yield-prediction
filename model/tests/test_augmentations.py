@@ -127,3 +127,17 @@ def test_image_and_label_stay_aligned_under_flips():
         assert np.array_equal(out["image"][0, 0], out["label"][0]), (
             f"image/label desynchronised for hflip={hflip} vflip={vflip}"
         )
+
+
+def test_spatial_weather_flips_preserve_month_order_and_receive_no_noise():
+    for hflip, vflip in [(1., 0.), (0., 1.), (1., 1.)]:
+        cfg = AugmentConfig(hflip_p=hflip, vflip_p=vflip, noise_p=1., noise_std=0.5)
+        weather = np.arange(2 * 8 * 5 * 7, dtype=np.float32).reshape(2, 8, 5, 7)
+        expected = weather.copy()
+        if hflip:
+            expected = np.flip(expected, -1)
+        if vflip:
+            expected = np.flip(expected, -2)
+        out = AlignedAugment(cfg)({"image": np.zeros((6, 8, 5, 7), np.float32),
+                                  "weather": weather.copy()})
+        np.testing.assert_array_equal(out["weather"], expected)

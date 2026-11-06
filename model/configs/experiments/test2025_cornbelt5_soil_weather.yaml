@@ -1,0 +1,105 @@
+# 2025 TEST of the SOIL + WEATHER model on its own five training states (IA, IL, IN, MD, MN).
+#
+# Checkpoint: outputs/runs/Cornbelt5_spatial_soil_weather/v3/test2024/checkpoints/farm-009-0.0000.ckpt
+# 2025 was never seen in training (trained on 2014-2022, validated on 2023, tested on 2024), so this is a
+# true out-of-time test on the same ground.
+#
+# Results land INSIDE the v3 run folder, next to its own test2024 results:
+#     outputs/runs/Cornbelt5_spatial_soil_weather/v3/test2025/eval/farm-009-0.0000/
+#
+# What must match the checkpoint (copied from its resolved_config.yaml, never edited):
+#   - the whole model block (temporal_reducer attention, exogenous_refiner true, exo_refiner_hidden 16)
+#   - data.soil_vars / data.weather_vars, same order
+# Normalisation (band + target + soil + weather) is read from the norm_stats.json beside the checkpoint,
+# never recomputed: 2025 is scored with the 2014-2022 training scaling.
+#
+# Only these differ from the training config, on purpose:
+#   data.imagery_root   ../data_preparation/data/HLS_Composites2   where the 2025 composites were written
+#   data.years          2014-2025                           2025 is the test year (see Split below)
+#   data.manifest_path  outputs/manifests/manifest_2014_2025.parquet  separate, so the training manifest is untouched
+#
+# 2025 labels: data/yield_labels/multistate_pseudo/2025/ holds soybeans_<ST>_2025_pseudo_yield.tif; the reader
+# expects nass_soybeans_yield_<ST>_2025_pseudo_30m_soybeans_only.tif, so the run script adds symlinks with that
+# name (the same way 2014-2024 are linked). Checked: every 2025 label raster sits on whole-pixel offsets inside
+# its 2025 CDL mask and HLS composite.
+#
+# Split: the split map stops at 2024, so the fallback split.val_years [2024] is used: test 2025, val 2024, train
+# 2014-2023. The leakage guard refuses a fold with no training years even for evaluation, which is why all years are
+# listed. Only the 2025 test split is read; the other years' imagery is never opened (and lives in HLS_Composites,
+# not HLS_Composites2), but their soil/weather files are checked for existence at start-up, and all exist.
+experiment_name: Cornbelt5_spatial_soil_weather/v3
+
+data:
+  crop: SOYBEANS
+  states: [IA, IL, IN, MD, MN]
+  years: [2014, 2015, 2016, 2017, 2018, 2019, 2020, 2021, 2022, 2023, 2024, 2025]
+
+  label_variant: pseudo
+  label_units: bu_ac
+  n_timesteps: 8
+  chip_size: 224
+  stride: 224
+  missing_month_policy: temporal_interp
+  min_crop_fraction: 0.05
+  min_label_fraction: 0.05
+  min_month_valid_fraction: 0.1
+  max_missing_months: 3
+  exclude_geoids: ['24033']    # Prince George's MD (BARC site); unchanged from training
+
+  label_root: ../data_preparation/data/yield_labels/multistate_pseudo
+  cdl_root: ../data_preparation/data/cdl_masks
+  imagery_root: ../data_preparation/data/HLS_Composites2
+  counties_path: ../data_preparation/data/county_maps/selected_states_counties_2023.gpkg
+  manifest_path: outputs/manifests/manifest_2014_2025.parquet
+
+  soil_root: ../data_preparation/data/soil/polaris/weightedaverage_merged
+  soil_vars: [clay, bd, ksat, om]
+  weather_root: ../data_preparation/data/prism/monthly
+  weather_vars: [ppt, tmean, vpdmean]
+
+norm:
+  mode: fold_training_statistics   # ignored in practice: evaluate_fold loads the checkpoint's norm_stats.json
+  target_scaling: zscore
+
+split:
+  policy: explicit_map
+  split_map_path: configs/splits/loyo_soybeans.yaml
+  test_year: 2025
+  val_years: [2024]
+
+model:
+  backbone_id: ibm-nasa-geospatial/Prithvi-EO-2.0-600M-TL
+  pretrained: true
+  finetune_mode: exo_refiner_only
+  use_time_embed: true
+  use_location_embed: true
+  embed_dim: 1280
+  depth: 32
+  out_blocks_one_based: [8, 16, 24, 32]
+  aux_block_one_based: 24
+  temporal_reducer: attention
+  decoder_channels: 1024
+  ppm_bins: [1, 2, 3, 6]
+  multiscale_fpn: false
+  head_dropout: 0.1
+  use_auxiliary: true
+  aux_channels: 256
+  final_activation: linear
+  detail_refiner: false
+  refiner_hidden: 16
+  exogenous_refiner: true
+  exo_refiner_hidden: 16
+
+loss:
+  main: mse
+  huber_delta: 1.0
+  aux_weight: 0.2
+
+train:
+  seed: 0
+  # Inference only. Nothing below trains.
+  batch_size: 8
+  num_workers: 16
+  prefetch_factor: 2
+  precision: 16-mixed
+  accelerator: auto

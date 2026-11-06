@@ -1,0 +1,77 @@
+# Zero-shot SPATIAL test of farm-018 (no soil/weather) on Ohio, soybeans.
+# Same protocol and caveats as spatial_holdout.yaml (read its header: norm stats
+# come from the checkpoint, never recomputed; expect bias, do not fix it).
+# Ohio is the "near transfer" case: eastern Corn Belt, rainfed, next to IN.
+# Architecture MUST match farm-018 (temporal_reducer: attention, no exogenous branch).
+# Run with scripts/run_spatial_holdout_oh.sh.
+experiment_name: spatial_holdout_oh
+
+data:
+  crop: SOYBEANS
+  # Unseen states only. None of these appear in the checkpoint's training split
+  # (IA, IL, IN, MD, MN) -- verified against norm_stats.json `states`.
+  states: [OH]
+  years: [2020, 2021, 2022, 2023, 2024]   # OH HLS imagery + pseudo-labels exist only for 2020-2024
+
+  label_variant: pseudo
+  label_units: bu_ac
+  n_timesteps: 8
+  chip_size: 224
+  stride: 224
+  missing_month_policy: temporal_interp
+
+  label_root: ../data_preparation/data/yield_labels/multistate_pseudo
+  cdl_root: ../data_preparation/data/cdl_masks
+  imagery_root: ../data_preparation/data/HLS_Composites
+  counties_path: ../data_preparation/data/county_maps/selected_states_counties_2023.gpkg
+
+  # Separate from the 5-state manifest so neither can clobber the other, and so
+  # the training runs' manifest fingerprint stays untouched.
+  manifest_path: outputs/manifests/manifest_oh.parquet
+
+# Ignored in practice -- evaluate_fold resolves norm stats from the checkpoint
+# (see note 3). Kept consistent with the checkpoint's resolved_config so nothing
+# silently diverges if that resolution path ever changes.
+norm:
+  mode: fold_training_statistics
+  target_scaling: zscore
+
+split:
+  policy: explicit_map
+  split_map_path: configs/splits/loyo_soybeans.yaml
+  test_year: 2024
+  val_years: [2023]
+
+model:
+  backbone_id: ibm-nasa-geospatial/Prithvi-EO-2.0-600M-TL
+  pretrained: true
+  finetune_mode: decoder_only
+  use_time_embed: true
+  use_location_embed: true
+  embed_dim: 1280
+  depth: 32
+  out_blocks_one_based: [8, 16, 24, 32]
+  aux_block_one_based: 24
+  temporal_reducer: attention      # MUST match farm-018; see header
+  decoder_channels: 1024
+  ppm_bins: [1, 2, 3, 6]
+  multiscale_fpn: false
+  head_dropout: 0.1
+  use_auxiliary: true
+  aux_channels: 256
+  final_activation: linear
+
+loss:
+  main: mse
+  huber_delta: 1.0
+  aux_weight: 0.2
+
+train:
+  seed: 0
+  # Inference only. Nothing below trains; batch/worker counts are sized for
+  # evaluation on a machine that may be running something else.
+  batch_size: 8
+  num_workers: 16
+  prefetch_factor: 2
+  precision: 16-mixed
+  accelerator: auto

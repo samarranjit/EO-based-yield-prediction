@@ -85,6 +85,25 @@ DEFAULT_WORKERS = 8
 POLARIS_DIR = DATA_DIR / "soil" / "polaris"
 POLARIS_RAW_DIR = POLARIS_DIR / "raw"
 
+ALL_STATE_FIPS = {"IL": "17", "IA": "19", "IN": "18", "MN": "27", "NE": "31", "MO": "29", "OH": "39", "SD": "46", "ND": "38",
+                  "KS": "20", "WI": "55", "MI": "26", "MD": "24", "DE": "10", "VA": "51", "NC": "37", "PA": "42"}
+
+
+def apply_scope(states, out_root):
+    """See 06_download_prism.apply_scope: --states REQUIRES --out-root so the five-state archive is never touched."""
+    global EXOG_STATE_FIPS, POLARIS_DIR, POLARIS_RAW_DIR, QC_DIR
+    if states and not out_root:
+        raise SystemExit("--states needs --out-root: otherwise other-state tiles would be written into the "
+                         "five-state archive (data/soil/polaris/raw). Example: --states OH --out-root data/ohio")
+    if states:
+        EXOG_STATE_FIPS = {s: ALL_STATE_FIPS[s] for s in states}
+    if out_root:
+        out_root = Path(out_root).resolve()
+        POLARIS_DIR = out_root / "soil" / "polaris"
+        POLARIS_RAW_DIR = POLARIS_DIR / "raw"
+        QC_DIR = out_root / "qc"
+        print(f"scope: states={list(EXOG_STATE_FIPS)} | output root {out_root}")
+
 
 def region_bounds_4326() -> tuple[float, float, float, float]:
     import geopandas as gpd
@@ -357,7 +376,12 @@ def main() -> None:
     ap.add_argument("--probe", action="store_true", help="with --estimate, HEAD real tiles for exact sizes")
     ap.add_argument("--coverage", action="store_true")
     ap.add_argument("--overwrite", action="store_true")
+    ap.add_argument("--states", nargs="+", choices=sorted(ALL_STATE_FIPS), default=None,
+                    help="select tiles for these states instead of the five study states (requires --out-root)")
+    ap.add_argument("--out-root", type=Path, default=None,
+                    help="write under this folder (soil/polaris/raw, qc/) instead of data/ -- never touches the default archive")
     args = ap.parse_args()
+    apply_scope(args.states, args.out_root)
 
     tiles = polaris_tiles()
     if args.pilot:

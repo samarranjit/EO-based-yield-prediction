@@ -29,6 +29,10 @@ provenance tags ([PAPER]/[PRITHVI]/[INFERENCE]/[US-ADAPT]) are in
 | 21 | Weight decay vs zero-init output layer | `wd 0.0` + `lr 1e-2` for refiner-only; decay otherwise cancels a zero-initialised head | INFERENCE |
 | 22 | One validation year can be pathological | `loyo_soybeans_2val.yaml` (year before + after) available; measured ~neutral, 1 val year stays default | US-ADAPT |
 | 23 | LOYO measures nothing about new ground | `spatial_holdout.yaml` — zero-shot on unseen states, reported **per state**, never pooled | US-ADAPT |
+| 24 | Soil/weather covariates, without disturbing DetailRefiner | `ExogenousRefiner` **supersedes** DetailRefiner: a new module containing DetailRefiner's raw-imagery path verbatim in structure, plus soil at pixel resolution (30 m, genuinely sub-token) and weather via spatial FiLM from nearest-sampled monthly maps (see decision 26). The two are mutually exclusive, not additive — stacking them would double-count the sub-token signal. DetailRefiner stays byte-for-byte for BARC reproduction; with no covariates configured, ExogenousRefiner reproduces it exactly, giving a free image-only ablation | US-ADAPT |
+| 25 | Soil/weather normalization under transfer | Statistics from raw values, missing excluded, coverage recorded; under `init_from` **kept** when names+order+weather layout match, **computed** only when absent, **refused** on mismatch (`ensure_exogenous_stats`) | INFERENCE |
+
+| 26 | Preserve PRISM variation inside each chip (2026-09-28) | Replace chip means and Linear weather MLP with `[B,W,T,H,W]` nearest-sampled maps and 1×1 convolutions producing spatial FiLM. Pool normalization over finite crop/valid-label pixels across months; record `weather_layout=spatial_nearest_crop_label_v1`. Reject legacy weather statistics/checkpoints. Preserve zero-init, frozen FARM, soil path, labels and loss. | USER-REQUEST |
 
 ## Findings that constrain future design
 
@@ -82,9 +86,47 @@ Earlier revisions of this file and of `BARC_TRANSFER.md` stated that the real
 rasters were absent. All three are stale — real HLS composites, pseudo-labels and
 measured 30 m BARC yield (2014–2024) are on disk and have been trained on.
 
+**Band normalization statistics include augmentation noise (pre-existing,
+measured 2026-09-28, NOT fixed).** `compute_fold_stats` iterates `train_ds`,
+built with `augment=True`, so ~40% of chips receive N(0, 0.1) noise added to
+*raw reflectance* during the pass (the noise is sized for z-scored inputs).
+Against 24 real un-augmented chips, `sqrt(true_std² + 0.4·0.1²)` reproduces
+farm-018's saved `band_std` to within 1–4% on every band:
+
+| Band | True std | Predicted with noise | farm-018 saved |
+|---|---|---|---|
+| BLUE | 0.0217 | 0.0669 | 0.0678 |
+| GREEN | 0.0275 | 0.0690 | 0.0701 |
+| RED | 0.0464 | 0.0785 | 0.0801 |
+| NIR_NARROW | 0.1172 | 0.1332 | 0.1394 |
+| SWIR1 | 0.0748 | 0.0979 | 0.0978 |
+| SWIR2 | 0.0822 | 0.1037 | 0.1040 |
+
+Means are unaffected (zero-mean noise). Train and eval use the same saved
+statistics, so there is no skew and no leakage — but visible-band z-scores are
+compressed ~2–3×. Every run that `init_from`s farm-018 must keep these exact
+statistics (`inherit_init_stats` does). Fixing it for *fresh* runs is one line
+(disable augmentation for the pass) but makes their normalization incomparable
+with farm-018's, so it is left as an explicit decision rather than changed
+silently. Soil/weather statistics are unaffected: they are read un-augmented.
+
+**Weather resolution — an earlier claim corrected.** An earlier revision of this
+feature stated that a PRISM 800 m cell is "larger than an entire 224 px chip"
+and sampled weather at the chip centroid. Both were wrong: 30″ ≈ 928 × 690 m, so
+a 6.72 km chip spans ~70 cells. A crop-weighted chip mean was initially used;
+decision #26 supersedes it with spatial maps to retain within-chip variation.
+
+## Implemented since the note below was written (2026-09-28)
+Weather (PRISM) and soil (POLARIS) covariates, and FiLM conditioning, are now
+implemented as `ExogenousRefiner` (`models/exogenous_refiner.py`,
+`data/exogenous_readers.py`) — see ARCHITECTURE.md's "ExogenousRefiner" section
+for the full design and decision #24 above. Pipeline-tested (synthetic CI +
+real-data smoke check); **no training run has been launched yet** — do not cite
+a result for this feature until `configs/experiments/cornbelt5_soil_weather.yaml`
+(or a successor) has actually been run.
+
 ## Open, not implemented
-Proposed but **not built** as of this date — do not document as behaviour:
-weather (PRISM/gridMET) and soil (POLARIS) covariates, FiLM conditioning on the
-head, a progressive-upsampling decoder with multi-level fusion, and sub-token
-shifted-window inference. Each is discussed in ARCHITECTURE.md's DOF section or in
-the findings above; none has code.
+Proposed but **not built** as of this date — do not document as behaviour: a
+progressive-upsampling decoder with multi-level fusion, and sub-token
+shifted-window inference. Each is discussed in ARCHITECTURE.md's DOF section or
+in the findings above; neither has code.

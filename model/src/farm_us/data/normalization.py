@@ -21,6 +21,8 @@ import numpy as np
 from ..config import PRITHVI_BAND_MEAN, PRITHVI_BAND_STD
 from ..training.metrics import TargetScaler
 
+WEATHER_STATS_LAYOUT = "spatial_nearest_crop_label_v1"
+
 
 @dataclass
 class StreamingBandStats:
@@ -83,6 +85,30 @@ class NormStats:
     #: against train_years, which does NOT detect a changed state list.
     states: list[str] | None = None
 
+    #: Soil / weather channel statistics for models/exogenous_refiner.py. None
+    #: means "not configured for this run" or "predates this field"; a run that
+    #: configures data.soil_vars / weather_vars refuses statistics without them
+    #: (data/exogenous_readers.py:require_exogenous_stats). Train-split only, from
+    #: RAW values with missing values EXCLUDED (never zero-filled first) -- see
+    #: ExogenousStatsAccumulator. Soil is masked to crop & valid-label pixels;
+    #: weather is masked to the same pixels, pooled across months.
+    soil_mean: list[float] | None = None
+    soil_std: list[float] | None = None
+    weather_mean: list[float] | None = None
+    weather_std: list[float] | None = None
+    #: The variable names, IN ORDER, the statistics above describe. Without them
+    #: statistics for [clay, bd] would silently be applied to a config saying
+    #: [bd, clay]; with them, a mismatch raises.
+    soil_vars: list[str] | None = None
+    weather_vars: list[str] | None = None
+    #: Fraction of values that were finite (not missing/nodata) per variable in
+    #: the pass that produced the statistics -- the provenance record for how
+    #: much mean-imputation the model's inputs involve.
+    soil_coverage: list[float] | None = None
+    weather_coverage: list[float] | None = None
+    # None identifies legacy chip-mean or unrecorded statistics, never spatial ones.
+    weather_layout: str | None = None
+
     def save(self, path: str | Path) -> None:
         path = Path(path)
         path.parent.mkdir(parents=True, exist_ok=True)
@@ -111,6 +137,60 @@ def find_norm_stats(checkpoint_path: str | Path) -> Path | None:
         if candidate.exists():
             return candidate
     return None
+
+
+class ExogenousStatsAccumulator:
+    """Streaming soil/weather statistics from RAW values.
+
+    Mean and std are over FINITE values only (StreamingBandStats drops
+    non-finite values), so a missing value is excluded rather than counted as
+    zero: [10, missing, 20] gives a mean of 15, not 10. Coverage -- the finite
+    fraction per variable -- is tracked alongside, so the amount of missing data
+    the model will see mean-imputed is recorded instead of hidden.
+
+    Must be fed the raw arrays from data/exogenous_readers.py:read_exogenous_raw
+    (NaN-preserving), never the normalized, NaN-filled model inputs.
+    """
+
+    def __init__(self, n_soil: int, n_weather: int) -> None:
+        self.n_soil, self.n_weather = n_soil, n_weather
+        self.soil = StreamingBandStats(n_soil) if n_soil else None
+        self.weather = StreamingBandStats(n_weather) if n_weather else None
+        self.soil_seen = np.zeros(n_soil); self.soil_finite = np.zeros(n_soil)
+        self.weather_seen = np.zeros(n_weather); self.weather_finite = np.zeros(n_weather)
+
+    def update(self, soil_raw: np.ndarray | None = None, weather_raw: np.ndarray | None = None,
+               valid: np.ndarray | None = None) -> None:
+        """``soil_raw`` [S,H,W] (masked by ``valid`` [H,W] if given); ``weather_raw`` [W,T,H,W], with the same spatial mask."""
+        if self.soil is not None and soil_raw is not None:
+            m = np.ones(soil_raw.shape[1:], dtype=bool) if valid is None else np.asarray(valid, bool)
+            per = [soil_raw[b][m].ravel() for b in range(self.n_soil)]
+            for b, v in enumerate(per):
+                self.soil_seen[b] += v.size
+                self.soil_finite[b] += np.isfinite(v).sum()
+            self.soil.update(per)
+        if self.weather is not None and weather_raw is not None:
+            if weather_raw.ndim != 4 or weather_raw.shape[0] != self.n_weather:
+                raise ValueError("raw weather statistics require [W,T,H,W] spatial maps")
+            m = (np.ones(weather_raw.shape[-2:], dtype=bool)
+                 if valid is None else np.asarray(valid, bool))
+            per = [weather_raw[b][:, m].ravel() for b in range(self.n_weather)]
+            for b, v in enumerate(per):
+                self.weather_seen[b] += v.size
+                self.weather_finite[b] += np.isfinite(v).sum()
+            self.weather.update(per)
+
+    def result(self) -> dict:
+        out: dict = {}
+        if self.soil is not None:
+            m, s = self.soil.finalize()
+            out["soil"] = {"mean": m.tolist(), "std": s.tolist(),
+                           "coverage": (self.soil_finite / np.maximum(self.soil_seen, 1)).tolist()}
+        if self.weather is not None:
+            m, s = self.weather.finalize()
+            out["weather"] = {"mean": m.tolist(), "std": s.tolist(),
+                              "coverage": (self.weather_finite / np.maximum(self.weather_seen, 1)).tolist()}
+        return out
 
 
 def official_prithvi_stats(train_years: list[int], target_scaler: TargetScaler) -> NormStats:

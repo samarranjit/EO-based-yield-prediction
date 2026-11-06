@@ -72,6 +72,17 @@ PRISM_CLIP_DIR = PRISM_DIR / "daily_clipped"
 PRISM_MONTHLY_DIR = PRISM_DIR / "monthly"
 
 
+def apply_scope(out_root):
+    """Read/write under ``out_root`` (e.g. data/ohio) instead of data/ -- matches 06's --out-root."""
+    global PRISM_DIR, PRISM_CLIP_DIR, PRISM_MONTHLY_DIR, QC_DIR
+    if out_root:
+        out_root = Path(out_root).resolve()
+        PRISM_DIR = out_root / "prism"
+        PRISM_CLIP_DIR, PRISM_MONTHLY_DIR = PRISM_DIR / "daily_clipped", PRISM_DIR / "monthly"
+        QC_DIR = out_root / "qc"
+        print(f"scope: output root {out_root}")
+
+
 def prism_clip_path(var: str, date_str: str) -> Path:
     if len(date_str) == 6:
         return PRISM_MONTHLY_DIR / var / f"prism_{var}_{date_str}.tif"
@@ -319,8 +330,10 @@ def main() -> None:
                          "default): only compute derived variables, e.g. vpdmean")
     ap.add_argument("--allow-partial", action="store_true",
                     help="daily path only: write months missing days (recorded in tags)")
+    ap.add_argument("--out-root", type=Path, default=None, help="use this folder (prism/) instead of data/")
     ap.add_argument("--overwrite", action="store_true")
     args = ap.parse_args()
+    apply_scope(args.out_root)
 
     years = list(range(args.start_year, args.end_year + 1))
     months = sorted(args.months)

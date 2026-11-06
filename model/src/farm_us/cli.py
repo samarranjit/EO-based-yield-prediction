@@ -145,12 +145,13 @@ def cmd_smoke_test_model(args):
 
     use_dummy = "--real" not in sys.argv
     m = FarmModel(cfg.model, n_timesteps=cfg.data.n_timesteps, chip_size=cfg.data.chip_size,
-                  use_dummy=use_dummy, dummy_embed_dim=32)
+                  use_dummy=use_dummy, dummy_embed_dim=32,
+                  n_soil=len(cfg.data.soil_vars), n_weather=len(cfg.data.weather_vars))
     bs = 2  # BatchNorm in the PPM (1x1 bin) needs >1 sample in train mode
     x = torch.randn(bs, 6, cfg.data.n_timesteps, cfg.data.chip_size, cfg.data.chip_size)
     tc = torch.zeros(bs, cfg.data.n_timesteps, 2); lc = torch.zeros(bs, 2)
     m.train()
-    out = m(x, tc, lc)
+    out = m(x, tc, lc, **_dummy_exogenous(cfg, bs))
     print(json.dumps({
         "backbone": "dummy" if use_dummy else cfg.model.backbone_id,
         "embed_dim": m.encoder.embed_dim,
@@ -171,7 +172,8 @@ def cmd_profile_memory(args):
     use_dummy = "--real" not in sys.argv
     dev = "cuda" if torch.cuda.is_available() else "cpu"
     m = FarmModel(cfg.model, n_timesteps=cfg.data.n_timesteps, chip_size=cfg.data.chip_size,
-                  use_dummy=use_dummy, dummy_embed_dim=32).to(dev)
+                  use_dummy=use_dummy, dummy_embed_dim=32,
+                  n_soil=len(cfg.data.soil_vars), n_weather=len(cfg.data.weather_vars)).to(dev)
 
     # Mirror real training exactly (lightning_module.py.configure_optimizers): a plain
     # AdamW over all trainable params. Momentum/variance buffers only get allocated on
@@ -195,7 +197,8 @@ def cmd_profile_memory(args):
         mask = torch.ones_like(tgt)
         with torch.autocast(device_type=dev, dtype=autocast_dtype, enabled=(dev == "cuda")):
             out = m(x, torch.zeros(cfg.train.batch_size, cfg.data.n_timesteps, 2, device=dev),
-                    torch.zeros(cfg.train.batch_size, 2, device=dev))
+                    torch.zeros(cfg.train.batch_size, 2, device=dev),
+                    **_dummy_exogenous(cfg, cfg.train.batch_size, dev))
             loss, _ = masked_mse(out["main"], tgt, mask)
             if out["aux"] is not None:
                 aux, _ = masked_mse(out["aux"], tgt, mask); loss = loss + 0.2 * aux
@@ -249,8 +252,25 @@ def cmd_band_importance(args):
     from .models.farm_model import FarmModel
 
     cfg = _cfg(args)
-    m = FarmModel(cfg.model, n_timesteps=cfg.data.n_timesteps, use_dummy="--real" not in sys.argv, dummy_embed_dim=32)
+    m = FarmModel(cfg.model, n_timesteps=cfg.data.n_timesteps, use_dummy="--real" not in sys.argv, dummy_embed_dim=32,
+                  n_soil=len(cfg.data.soil_vars), n_weather=len(cfg.data.weather_vars))
     print(json.dumps(band_importance(m), indent=2))
+
+
+def _dummy_exogenous(cfg, batch_size: int, device: str = "cpu") -> dict:
+    """Random soil/weather tensors shaped like the real ones, for the model-shape
+    and memory probes. Empty when neither is configured, so those commands are
+    unchanged for every existing config."""
+    import torch
+
+    out = {}
+    if cfg.data.soil_vars:
+        out["soil"] = torch.randn(batch_size, len(cfg.data.soil_vars),
+                                  cfg.data.chip_size, cfg.data.chip_size, device=device)
+    if cfg.data.weather_vars:
+        out["weather"] = torch.randn(batch_size, len(cfg.data.weather_vars),
+                                     cfg.data.n_timesteps, cfg.data.chip_size, cfg.data.chip_size, device=device)
+    return out
 
 
 def _kv(overrides, key):

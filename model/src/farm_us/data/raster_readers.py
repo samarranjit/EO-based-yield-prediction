@@ -43,6 +43,22 @@ class ChipArrays:
     bounds: tuple[float, float, float, float]
 
 
+@dataclass
+class GridArrays:
+    """A chip's label-grid geometry, label and crop mask -- no imagery.
+
+    For passes that need the chip's grid (to place soil/weather on it) and its
+    valid-pixel mask, but not the 8 monthly HLS reads that dominate the cost of
+    ``read_chip`` -- e.g. the soil/weather-only statistics pass.
+    """
+
+    label: np.ndarray          # [H, W] float (nodata -> nan)
+    crop_mask: np.ndarray      # [H, W] bool
+    transform: object
+    crs: str
+    bounds: tuple[float, float, float, float]
+
+
 class RasterReader(Protocol):
     def raster_size(self, state: str, year: int) -> tuple[int, int]: ...
     def read_chip(self, state: str, year: int, window: ChipWindow) -> ChipArrays: ...
@@ -175,6 +191,32 @@ class GeotiffMonthlyReader:
             image=img, month_valid=month_valid, label=label, crop_mask=crop_mask,
             county_id=None, transform=transform, crs=crs, bounds=bounds,  # type: ignore[arg-type]
         )
+
+    def read_label_and_crop(self, state: str, year: int, window: ChipWindow) -> GridArrays:
+        """The label + CDL half of :meth:`read_chip`, without the HLS reads.
+
+        Deliberately a separate method rather than a refactor of ``read_chip``:
+        it reproduces the same label-grid window and the same CDL alignment
+        (``_aligned_window`` from the label's geographic bounds), so the grid it
+        returns is identical to ``read_chip``'s -- verified by
+        tests/test_exogenous_stats.py -- while leaving the path every existing
+        experiment depends on untouched.
+        """
+        import rasterio
+
+        rw = Window(window.col_off, window.row_off, window.width, window.height)
+        with rasterio.open(self._label_path(state, year)) as ds:
+            lnod = ds.nodata if ds.nodata is not None else self.cfg.nodata
+            label = ds.read(1, window=rw, boundless=True, fill_value=lnod).astype(np.float32)
+            label[label == lnod] = np.nan
+            transform = ds.window_transform(rw)
+            crs = str(ds.crs)
+            bounds = tuple(rasterio.windows.bounds(rw, ds.transform))  # type: ignore
+        with rasterio.open(self._cdl_path(state, year)) as ds:
+            cw = _aligned_window(ds, bounds, str(self._cdl_path(state, year)))
+            cdl = ds.read(1, window=cw, boundless=True, fill_value=0).astype(np.float32)
+        return GridArrays(label=label, crop_mask=cdl > 0.5, transform=transform, crs=crs,
+                          bounds=bounds)  # type: ignore[arg-type]
 
 
 def build_reader(cfg: DataConfig) -> RasterReader:

@@ -1,0 +1,87 @@
+# 2025 TEST of the SOIL + WEATHER model on OHIO (an unseen state AND an unseen year), soybeans.
+#
+# Checkpoint: outputs/runs/Cornbelt5_spatial_soil_weather/v3/test2024/checkpoints/farm-009-0.0000.ckpt
+#   (run through the link outputs/runs/spatial_holdout_oh/_checkpoints/exo_v3_farm-009-0.0000.ckpt so the results
+#   folder is named exo_v3_farm-009-0.0000, the same as the 2020-2024 Ohio runs).
+# Same model block, soil/weather variables and Ohio soil/weather folders as spatial_holdout_oh_soil_weather.yaml.
+# Only these differ from that config:
+#   data.years          2020-2025   2025 is the test year; 2020-2024 are listed only so the fold has training years
+#                                   (the leakage guard refuses a fold without them). Only 2025 is read.
+#   data.imagery_root   HLS_Composites2   where the 2025 Ohio composites were written
+#   data.manifest_path  outputs/manifests/manifest_oh_2020_2025.parquet   new; manifest_oh.parquet (2020-2024) is untouched
+#   split               test 2025, val 2024 (the split map stops at 2024, so split.val_years is the fallback)
+# Results: outputs/runs/spatial_holdout_oh/test2025/eval/exo_v3_farm-009-0.0000/
+# Labels: yield_labels/multistate_pseudo/2025/soybeans_OH_2025_pseudo_yield.tif, linked by the run script under the
+# reader's name. Checked: whole-pixel offsets inside its 2025 CDL mask and HLS composite, same grid as OH 2024.
+experiment_name: spatial_holdout_oh
+
+data:
+  crop: SOYBEANS
+  states: [OH]
+  years: [2020, 2021, 2022, 2023, 2024, 2025]   # 2025 = test; the rest only give the fold its training years
+
+  label_variant: pseudo
+  label_units: bu_ac
+  n_timesteps: 8
+  chip_size: 224
+  stride: 224
+  missing_month_policy: temporal_interp
+
+  label_root: ../data_preparation/data/yield_labels/multistate_pseudo
+  cdl_root: ../data_preparation/data/cdl_masks
+  imagery_root: ../data_preparation/data/HLS_Composites2   # 2025 composites
+  counties_path: ../data_preparation/data/county_maps/selected_states_counties_2023.gpkg
+  manifest_path: outputs/manifests/manifest_oh_2020_2025.parquet
+
+  # --- soil + weather (Ohio) ---
+  soil_root: ../data_preparation/data/ohio/soil/polaris/weightedaverage_merged
+  soil_vars: [clay, bd, ksat, om]
+  weather_root: ../data_preparation/data/ohio/prism/monthly
+  weather_vars: [ppt, tmean, vpdmean]
+
+norm:
+  mode: fold_training_statistics   # ignored in practice: evaluate_fold loads the checkpoint's norm_stats.json
+  target_scaling: zscore
+
+split:
+  policy: explicit_map
+  split_map_path: configs/splits/loyo_soybeans.yaml
+  test_year: 2025
+  val_years: [2024]
+
+model:
+  backbone_id: ibm-nasa-geospatial/Prithvi-EO-2.0-600M-TL
+  pretrained: true
+  finetune_mode: exo_refiner_only
+  use_time_embed: true
+  use_location_embed: true
+  embed_dim: 1280
+  depth: 32
+  out_blocks_one_based: [8, 16, 24, 32]
+  aux_block_one_based: 24
+  temporal_reducer: attention
+  decoder_channels: 1024
+  ppm_bins: [1, 2, 3, 6]
+  multiscale_fpn: false
+  head_dropout: 0.1
+  use_auxiliary: true
+  aux_channels: 256
+  final_activation: linear
+  detail_refiner: false
+  refiner_hidden: 16
+  exogenous_refiner: true
+  exo_refiner_hidden: 16
+
+loss:
+  main: mse
+  huber_delta: 1.0
+  aux_weight: 0.2
+
+train:
+  seed: 0
+  # Inference only. Nothing below trains.
+  batch_size: 8
+  num_workers: 16
+  prefetch_factor: 2
+  precision: 16-mixed
+  accelerator: auto

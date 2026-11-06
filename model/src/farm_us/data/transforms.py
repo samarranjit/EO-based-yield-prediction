@@ -21,7 +21,7 @@ import numpy as np
 
 from ..config import AugmentConfig
 
-_COMPANIONS = ("label", "crop_mask", "label_mask", "valid_mask", "county_id")
+_COMPANIONS = ("label", "crop_mask", "label_mask", "valid_mask", "county_id", "soil", "weather")
 
 
 class AlignedAugment:

@@ -1,0 +1,89 @@
+# Zero-shot SPATIAL test of the SOIL + WEATHER model on Ohio, soybeans.
+#
+# Checkpoint: outputs/runs/Cornbelt5_spatial_soil_weather/v3/test2024/checkpoints/farm-009-0.0000.ckpt
+#   = farm-018 (frozen) + ExogenousRefiner reading raw HLS + POLARIS soil + PRISM weather.
+# Counterpart of spatial_holdout_oh.yaml (farm-018, no soil/weather); same states/years/manifest so the
+# two runs are directly comparable. Results go to the SAME experiment folder:
+#     outputs/runs/spatial_holdout_oh/test<YEAR>/eval/<checkpoint tag>/
+# next to the farm-018-0.0000 results (the tag is the checkpoint file's stem).
+#
+# What must match the checkpoint (copied from its resolved_config.yaml, never edited):
+#   - model block: temporal_reducer attention, exogenous_refiner true, exo_refiner_hidden 16
+#   - data.soil_vars / data.weather_vars, in the same ORDER (they set the branch's input width)
+# Normalisation (band + target + soil + weather statistics) comes from the norm_stats.json beside the
+# checkpoint and is never recomputed here: Ohio is evaluated with the five-state training scaling.
+#
+# Soil and weather come from the separate Ohio folders (the five-state files are masked to IA/IL/IN/MD/MN
+# and are empty over Ohio): data/ohio/soil/... and data/ohio/prism/...
+experiment_name: spatial_holdout_oh
+
+data:
+  crop: SOYBEANS
+  states: [OH]
+  years: [2020, 2021, 2022, 2023, 2024]   # OH HLS imagery + pseudo-labels exist only for 2020-2024
+
+  label_variant: pseudo
+  label_units: bu_ac
+  n_timesteps: 8
+  chip_size: 224
+  stride: 224
+  missing_month_policy: temporal_interp
+
+  label_root: ../data_preparation/data/yield_labels/multistate_pseudo
+  cdl_root: ../data_preparation/data/cdl_masks
+  imagery_root: ../data_preparation/data/HLS_Composites
+  counties_path: ../data_preparation/data/county_maps/selected_states_counties_2023.gpkg
+  manifest_path: outputs/manifests/manifest_oh.parquet   # reused from the farm-018 Ohio run
+
+  # --- soil + weather (Ohio) ---
+  soil_root: ../data_preparation/data/ohio/soil/polaris/weightedaverage_merged
+  soil_vars: [clay, bd, ksat, om]
+  weather_root: ../data_preparation/data/ohio/prism/monthly
+  weather_vars: [ppt, tmean, vpdmean]
+
+norm:
+  mode: fold_training_statistics   # ignored in practice: evaluate_fold loads the checkpoint's norm_stats.json
+  target_scaling: zscore
+
+split:
+  policy: explicit_map
+  split_map_path: configs/splits/loyo_soybeans.yaml
+  test_year: 2024
+  val_years: [2023]
+
+model:
+  backbone_id: ibm-nasa-geospatial/Prithvi-EO-2.0-600M-TL
+  pretrained: true
+  finetune_mode: exo_refiner_only
+  use_time_embed: true
+  use_location_embed: true
+  embed_dim: 1280
+  depth: 32
+  out_blocks_one_based: [8, 16, 24, 32]
+  aux_block_one_based: 24
+  temporal_reducer: attention
+  decoder_channels: 1024
+  ppm_bins: [1, 2, 3, 6]
+  multiscale_fpn: false
+  head_dropout: 0.1
+  use_auxiliary: true
+  aux_channels: 256
+  final_activation: linear
+  detail_refiner: false
+  refiner_hidden: 16
+  exogenous_refiner: true
+  exo_refiner_hidden: 16
+
+loss:
+  main: mse
+  huber_delta: 1.0
+  aux_weight: 0.2
+
+train:
+  seed: 0
+  # Inference only. Nothing below trains.
+  batch_size: 8
+  num_workers: 16
+  prefetch_factor: 2
+  precision: 16-mixed
+  accelerator: auto

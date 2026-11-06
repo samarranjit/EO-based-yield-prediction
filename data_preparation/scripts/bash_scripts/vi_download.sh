@@ -11,12 +11,12 @@ unset VIRTUAL_ENV
 PROJECT_DIR="/home/cholab/LabMembers/Samar/EO-based-yield-prediction"
 SCRIPT="$PROJECT_DIR/data_preparation/scripts/download_county_wise_summary_table_from_azure_hls.py"
 CDL_DIR="$PROJECT_DIR/data_preparation/data/cdl_masks"
-OUT_DIR="$PROJECT_DIR/data_preparation/outputs/county_vi_summary"
-CACHE_DIR="/home/cholab/LabMembers/Samar/EO-based-yield-prediction/temp"
+OUT_DIR="/mnt/ollama/EO-yiled-prediction-backup-files/VI_inputs"
+CACHE_DIR="/mnt/ollama/EO-yiled-prediction-backup-files/temp-EO/_vi_cache"
 LOG_DIR="$OUT_DIR/_watchdog_logs"
 
-STATES=(IN)
-YEARS=(2022)
+STATES=(IN IL IA MD MN OH)
+YEARS=(2025)
 
 DOWNLOAD_WORKERS=9
 PROCESS_WORKERS=8
@@ -29,6 +29,13 @@ mkdir -p "$OUT_DIR" "$CACHE_DIR" "$LOG_DIR"
 cd "$PROJECT_DIR" || exit 1
 
 ACTIVE_JOB=""
+
+NTFY_URL="ntfy.sh/eo_samar"
+
+# Best-effort push notification: a network problem must never stop the download.
+notify() {
+    curl -s -m 10 -H "Title: $1" -d "$2" "$NTFY_URL" >/dev/null 2>&1 || true
+}
 
 kill_group() {
     local pgid="$1"
@@ -56,6 +63,7 @@ run_once() {
 
     if [[ ! -f "$cdl" ]]; then
         echo "[WATCHDOG] Missing CDL, skipping: $cdl"
+        notify "VI SKIPPED: $state $year" "Missing CDL mask: $cdl"
         return 2
     fi
 
@@ -149,6 +157,7 @@ for STATE in "${STATES[@]}"; do
             case "$CODE" in
                 0)
                     echo "[WATCHDOG] Completed $STATE $YEAR."
+                    notify "VI done: $STATE $YEAR" "County VI summary and pixel TIFFs finished for $STATE $YEAR (attempt $ATTEMPT)."
                     break
                     ;;
                 2)
@@ -165,6 +174,7 @@ for STATE in "${STATES[@]}"; do
 
             if (( ATTEMPT >= MAX_RESTARTS )); then
                 echo "[WATCHDOG] Gave up on $STATE $YEAR after $MAX_RESTARTS attempts."
+                notify "VI FAILED: $STATE $YEAR" "Gave up after $MAX_RESTARTS attempts. The whole run stopped here."
                 exit 1
             fi
             sleep "$RETRY_SLEEP"
@@ -173,3 +183,4 @@ for STATE in "${STATES[@]}"; do
 done
 
 echo "[WATCHDOG] All requested state-years are complete."
+notify "VI finished" "Loop over ${STATES[*]} x ${YEARS[*]} has ended. Check the per-state messages above for any SKIPPED."

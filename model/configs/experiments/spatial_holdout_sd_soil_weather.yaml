@@ -1,0 +1,91 @@
+# Zero-shot SPATIAL test of the SOIL + WEATHER model on SOUTH DAKOTA, soybeans.
+#
+# Checkpoint: outputs/runs/Cornbelt5_spatial_soil_weather/v3/test2024/checkpoints/farm-009-0.0000.ckpt
+#   = farm-018 (frozen) + ExogenousRefiner reading raw HLS + POLARIS soil + PRISM weather.
+# Counterpart of spatial_holdout_sd.yaml (farm-018, no soil/weather): same state, years and manifest, so the two
+# runs are directly comparable. Results go to the SAME experiment folder:
+#     outputs/runs/spatial_holdout_sd/test<YEAR>/eval/farm-009-0.0000/   (next to farm-018-0.0000/)
+#
+# What must match the checkpoint (copied from its resolved_config.yaml, never edited):
+#   - model block: temporal_reducer attention, exogenous_refiner true, exo_refiner_hidden 16
+#   - data.soil_vars / data.weather_vars, in the same ORDER (they set the branch's input width)
+# Normalisation (band + target + soil + weather) comes from the norm_stats.json beside the checkpoint and is
+# never recomputed: South Dakota is evaluated with the five-state training scaling.
+#
+# Soil and weather come from data/south_dakota/ (downloaded 2026-10-26 with scripts 06-09 --states SD;
+# PRISM Apr-Nov 2014-2025). The five-state files are masked to IA/IL/IN/MD/MN and empty over SD.
+#
+# Years: 2020-2024 only. SD 2014-2019 has imagery (in HLS_Composites2, not HLS_Composites) and CDL masks but
+# NO pseudo-yield labels yet, so it cannot be scored.
+experiment_name: spatial_holdout_sd
+
+data:
+  crop: SOYBEANS
+  states: [SD]
+  years: [2020, 2021, 2022, 2023, 2024]   # SD pseudo-labels exist only for 2020-2024 (see header)
+
+  label_variant: pseudo
+  label_units: bu_ac
+  n_timesteps: 8
+  chip_size: 224
+  stride: 224
+  missing_month_policy: temporal_interp
+
+  label_root: ../data_preparation/data/yield_labels/multistate_pseudo
+  cdl_root: ../data_preparation/data/cdl_masks
+  imagery_root: ../data_preparation/data/HLS_Composites
+  counties_path: ../data_preparation/data/county_maps/selected_states_counties_2023.gpkg
+  manifest_path: outputs/manifests/manifest_sd.parquet   # same manifest as the farm-018 SD run
+
+  # --- soil + weather (South Dakota) ---
+  soil_root: ../data_preparation/data/south_dakota/soil/polaris/weightedaverage_merged
+  soil_vars: [clay, bd, ksat, om]
+  weather_root: ../data_preparation/data/south_dakota/prism/monthly
+  weather_vars: [ppt, tmean, vpdmean]
+
+norm:
+  mode: fold_training_statistics   # ignored in practice: evaluate_fold loads the checkpoint's norm_stats.json
+  target_scaling: zscore
+
+split:
+  policy: explicit_map
+  split_map_path: configs/splits/loyo_soybeans.yaml
+  test_year: 2024
+  val_years: [2023]
+
+model:
+  backbone_id: ibm-nasa-geospatial/Prithvi-EO-2.0-600M-TL
+  pretrained: true
+  finetune_mode: exo_refiner_only
+  use_time_embed: true
+  use_location_embed: true
+  embed_dim: 1280
+  depth: 32
+  out_blocks_one_based: [8, 16, 24, 32]
+  aux_block_one_based: 24
+  temporal_reducer: attention
+  decoder_channels: 1024
+  ppm_bins: [1, 2, 3, 6]
+  multiscale_fpn: false
+  head_dropout: 0.1
+  use_auxiliary: true
+  aux_channels: 256
+  final_activation: linear
+  detail_refiner: false
+  refiner_hidden: 16
+  exogenous_refiner: true
+  exo_refiner_hidden: 16
+
+loss:
+  main: mse
+  huber_delta: 1.0
+  aux_weight: 0.2
+
+train:
+  seed: 0
+  # Inference only. Nothing below trains.
+  batch_size: 8
+  num_workers: 16
+  prefetch_factor: 2
+  precision: 16-mixed
+  accelerator: auto

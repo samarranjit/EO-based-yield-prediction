@@ -1,0 +1,219 @@
+# Stage 2 of soil+weather integration: JOINT fine-tune. Continues from the Stage 1
+# model (v3, cornbelt5_soil_weather.yaml) and trains the decoder, temporal reducers,
+# heads and ExogenousRefiner together. The Prithvi encoder stays frozen.
+#
+#   mkdir -p outputs/logs/Cornbelt5_spatial_soil_weather/v4_main_and_soil_branch_update
+#   nohup uv run python -m farm_us.cli train \
+#     --config configs/experiments/cornbelt5_soil_weather_joint.yaml --real \
+#     init_from=outputs/runs/Cornbelt5_spatial_soil_weather/v3/test2024/checkpoints/farm-009-0.0000.ckpt \
+#     > outputs/logs/Cornbelt5_spatial_soil_weather/v4_main_and_soil_branch_update/train.log 2>&1 &
+#
+# If the job dies, pass resume_from=<run>/checkpoints/last.ckpt instead of init_from.
+#
+# Why this run: with the decoder frozen, the branch could only add a correction on
+# top of farm-018, and part of what it learned is a level shift (2024 bias -0.43 ->
+# -1.39, 2025 -2.75). Joint training lets the coarse path take the level back.
+#
+# What differs from cornbelt5_soil_weather.yaml, and why:
+#   experiment_name   version folder under Cornbelt5_spatial_soil_weather/.
+#   finetune_mode decoder_only   encoder frozen, everything else trains.
+#   init_from v3, not farm-018   the branch is already trained, which is what makes
+#       one shared LR workable. From farm-018 the fresh branch would need ~1e-3.
+#   lr 5e-6   the peak LR farm-018's decoder was trained at. 1e-3 would destroy the
+#       decoder. The branch moves at 1/200th of its Stage 1 LR: small adjustments only.
+#   min_lr 1e-8, grad_accum 3   same as farm-018 (grad_accum 1 means 3x the updates).
+#   weight_decay 0.01   shrinks weights only ~0.2% over the run at this LR.
+#   epochs 15, warmup_epochs 2   LR 2.5e-6, 5e-6, then cosine over the rest.
+#   early_stopping_patience 5   15 could not fire usefully in a 15-epoch run; must
+#       exceed warmup_epochs because the count starts at epoch 0.
+#   periodic_ckpt every 2 epochs, all kept   any of them can be evaluated later.
+#
+# Train and val curves: uv run python scripts/plot_training_curves.py --run-dir <run>/test2024
+#
+# norm.inherit_init_stats is not enforced in decoder_only, so it must stay true here:
+# recomputing would change the scaling the decoder and branch were trained with.
+#
+# Judging it: select on val 2023 only (v3 best val RMSE 4.469; epoch 0 should stay
+# close). Then 2024 including county vs NASS, then the OH and SD spatial holdouts: the
+# decoder can now adapt to static soil, a location fingerprint, and LOYO cannot see
+# that. This run does not show whether soil/weather add anything over image-only.
+experiment_name: Cornbelt5_spatial_soil_weather/v4_main_and_soil_branch_update
+
+data:
+  crop: SOYBEANS
+  states: [IA, IL, IN, MD, MN]
+  years: [2014, 2015, 2016, 2017, 2018, 2019, 2020, 2021, 2022, 2023, 2024]
+
+  label_variant: pseudo
+  label_units: bu_ac
+  n_timesteps: 8
+  chip_size: 224
+  stride: 224
+  missing_month_policy: temporal_interp
+
+  label_root: ../data_preparation/data/yield_labels/multistate_pseudo
+  cdl_root: ../data_preparation/data/cdl_masks
+  imagery_root: ../data_preparation/data/HLS_Composites
+  counties_path: ../data_preparation/data/county_maps/selected_states_counties_2023.gpkg
+
+  # Copied verbatim from cornbelt5_soybeans_longer.yaml -- the frozen base was
+  # trained on exactly this chip set, so the train split must match it.
+  # Chips whose HLS imagery has a corrupt DEFLATE tile -- these raise only when
+  # decoded, inside a DataLoader worker, killing the run hours in.
+  # Populated from scripts/scan_hls_corruption.py; see outputs/qc/.
+  #
+  # 2020-2024 scan (outputs/qc/hls_corruption_cornbelt5.json): 4 bad chips, IN.
+  # 2014-2024 scan (outputs/qc/hls_corruption_cornbelt5_longer.json, run
+  # 2026-08-24): 440 files / 967,352 window reads, 78 more bad chips, all in
+  # hls_soybeans_MD_2015_MAY.tif (62) and hls_soybeans_MD_2015_AUG.tif (24) --
+  # the same export batch. 0 unreadable files; nothing else in 11 years x 5
+  # states came back bad.
+  exclude_sample_ids:
+    - soybeans_IN_2021_r2464_c3360     # hls_soybeans_IN_2021_AUG.tif
+    - soybeans_IN_2021_r2464_c3584     # hls_soybeans_IN_2021_AUG.tif
+    - soybeans_IN_2022_r11648_c4928    # hls_soybeans_IN_2022_JUL.tif
+    - soybeans_IN_2022_r11648_c5152    # hls_soybeans_IN_2022_JUL.tif
+    - soybeans_MD_2015_r1120_c4256     # hls_soybeans_MD_2015_AUG.tif
+    - soybeans_MD_2015_r1120_c4480     # hls_soybeans_MD_2015_AUG.tif
+    - soybeans_MD_2015_r1120_c4704     # hls_soybeans_MD_2015_AUG.tif
+    - soybeans_MD_2015_r1120_c4928     # hls_soybeans_MD_2015_AUG.tif
+    - soybeans_MD_2015_r1120_c5152     # hls_soybeans_MD_2015_AUG.tif
+    - soybeans_MD_2015_r1120_c5824     # hls_soybeans_MD_2015_AUG.tif
+    - soybeans_MD_2015_r1120_c6048     # hls_soybeans_MD_2015_AUG.tif
+    - soybeans_MD_2015_r1120_c6272     # hls_soybeans_MD_2015_AUG.tif
+    - soybeans_MD_2015_r1792_c6272     # hls_soybeans_MD_2015_MAY.tif
+    - soybeans_MD_2015_r1792_c6496     # hls_soybeans_MD_2015_MAY.tif
+    - soybeans_MD_2015_r1792_c6944     # hls_soybeans_MD_2015_MAY.tif
+    - soybeans_MD_2015_r1792_c9408     # hls_soybeans_MD_2015_MAY.tif
+    - soybeans_MD_2015_r1792_c9632     # hls_soybeans_MD_2015_MAY.tif
+    - soybeans_MD_2015_r1792_c9856     # hls_soybeans_MD_2015_MAY.tif
+    - soybeans_MD_2015_r2016_c10304    # hls_soybeans_MD_2015_MAY.tif
+    - soybeans_MD_2015_r2016_c10528    # hls_soybeans_MD_2015_MAY.tif
+    - soybeans_MD_2015_r2016_c10752    # hls_soybeans_MD_2015_AUG.tif, hls_soybeans_MD_2015_MAY.tif
+    - soybeans_MD_2015_r2240_c10080    # hls_soybeans_MD_2015_MAY.tif
+    - soybeans_MD_2015_r2240_c10304    # hls_soybeans_MD_2015_MAY.tif
+    - soybeans_MD_2015_r2240_c10528    # hls_soybeans_MD_2015_MAY.tif
+    - soybeans_MD_2015_r2240_c10752    # hls_soybeans_MD_2015_MAY.tif
+    - soybeans_MD_2015_r2240_c5376     # hls_soybeans_MD_2015_AUG.tif, hls_soybeans_MD_2015_MAY.tif
+    - soybeans_MD_2015_r224_c9408      # hls_soybeans_MD_2015_MAY.tif
+    - soybeans_MD_2015_r224_c9632      # hls_soybeans_MD_2015_MAY.tif
+    - soybeans_MD_2015_r4032_c10528    # hls_soybeans_MD_2015_MAY.tif
+    - soybeans_MD_2015_r4032_c10752    # hls_soybeans_MD_2015_MAY.tif
+    - soybeans_MD_2015_r4032_c10976    # hls_soybeans_MD_2015_MAY.tif
+    - soybeans_MD_2015_r4032_c11200    # hls_soybeans_MD_2015_MAY.tif
+    - soybeans_MD_2015_r4256_c10080    # hls_soybeans_MD_2015_MAY.tif
+    - soybeans_MD_2015_r4256_c10528    # hls_soybeans_MD_2015_MAY.tif
+    - soybeans_MD_2015_r4256_c10752    # hls_soybeans_MD_2015_MAY.tif
+    - soybeans_MD_2015_r4256_c10976    # hls_soybeans_MD_2015_MAY.tif
+    - soybeans_MD_2015_r4256_c12320    # hls_soybeans_MD_2015_MAY.tif
+    - soybeans_MD_2015_r4256_c12768    # hls_soybeans_MD_2015_MAY.tif
+    - soybeans_MD_2015_r4256_c12992    # hls_soybeans_MD_2015_AUG.tif, hls_soybeans_MD_2015_MAY.tif
+    - soybeans_MD_2015_r4256_c8288     # hls_soybeans_MD_2015_MAY.tif
+    - soybeans_MD_2015_r4256_c9856     # hls_soybeans_MD_2015_MAY.tif
+    - soybeans_MD_2015_r4480_c10080    # hls_soybeans_MD_2015_AUG.tif, hls_soybeans_MD_2015_MAY.tif
+    - soybeans_MD_2015_r4480_c10304    # hls_soybeans_MD_2015_AUG.tif, hls_soybeans_MD_2015_MAY.tif
+    - soybeans_MD_2015_r4480_c10528    # hls_soybeans_MD_2015_AUG.tif, hls_soybeans_MD_2015_MAY.tif
+    - soybeans_MD_2015_r4480_c10752    # hls_soybeans_MD_2015_AUG.tif, hls_soybeans_MD_2015_MAY.tif
+    - soybeans_MD_2015_r4480_c10976    # hls_soybeans_MD_2015_AUG.tif, hls_soybeans_MD_2015_MAY.tif
+    - soybeans_MD_2015_r4480_c11200    # hls_soybeans_MD_2015_MAY.tif
+    - soybeans_MD_2015_r4480_c11424    # hls_soybeans_MD_2015_MAY.tif
+    - soybeans_MD_2015_r4480_c11648    # hls_soybeans_MD_2015_MAY.tif
+    - soybeans_MD_2015_r4480_c11872    # hls_soybeans_MD_2015_MAY.tif
+    - soybeans_MD_2015_r4480_c12096    # hls_soybeans_MD_2015_MAY.tif
+    - soybeans_MD_2015_r4480_c12320    # hls_soybeans_MD_2015_MAY.tif
+    - soybeans_MD_2015_r4480_c12544    # hls_soybeans_MD_2015_MAY.tif
+    - soybeans_MD_2015_r4480_c12768    # hls_soybeans_MD_2015_MAY.tif
+    - soybeans_MD_2015_r4704_c11424    # hls_soybeans_MD_2015_AUG.tif
+    - soybeans_MD_2015_r4704_c11648    # hls_soybeans_MD_2015_AUG.tif
+    - soybeans_MD_2015_r4704_c11872    # hls_soybeans_MD_2015_AUG.tif
+    - soybeans_MD_2015_r4704_c12096    # hls_soybeans_MD_2015_AUG.tif
+    - soybeans_MD_2015_r4704_c12320    # hls_soybeans_MD_2015_AUG.tif
+    - soybeans_MD_2015_r4704_c12544    # hls_soybeans_MD_2015_AUG.tif
+    - soybeans_MD_2015_r4704_c12768    # hls_soybeans_MD_2015_AUG.tif
+    - soybeans_MD_2015_r4704_c12992    # hls_soybeans_MD_2015_AUG.tif
+    - soybeans_MD_2015_r5152_c12544    # hls_soybeans_MD_2015_MAY.tif
+    - soybeans_MD_2015_r5152_c12768    # hls_soybeans_MD_2015_MAY.tif
+    - soybeans_MD_2015_r5376_c11424    # hls_soybeans_MD_2015_MAY.tif
+    - soybeans_MD_2015_r5376_c11648    # hls_soybeans_MD_2015_MAY.tif
+    - soybeans_MD_2015_r5376_c12544    # hls_soybeans_MD_2015_MAY.tif
+    - soybeans_MD_2015_r5376_c8512     # hls_soybeans_MD_2015_MAY.tif
+    - soybeans_MD_2015_r672_c7840      # hls_soybeans_MD_2015_MAY.tif
+    - soybeans_MD_2015_r672_c8064      # hls_soybeans_MD_2015_MAY.tif
+    - soybeans_MD_2015_r672_c8736      # hls_soybeans_MD_2015_MAY.tif
+    - soybeans_MD_2015_r672_c8960      # hls_soybeans_MD_2015_MAY.tif
+    - soybeans_MD_2015_r896_c10080     # hls_soybeans_MD_2015_MAY.tif
+    - soybeans_MD_2015_r896_c10304     # hls_soybeans_MD_2015_MAY.tif
+    - soybeans_MD_2015_r896_c6048      # hls_soybeans_MD_2015_MAY.tif
+    - soybeans_MD_2015_r896_c6272      # hls_soybeans_MD_2015_MAY.tif
+    - soybeans_MD_2015_r896_c6496      # hls_soybeans_MD_2015_MAY.tif
+    - soybeans_MD_2015_r896_c6720      # hls_soybeans_MD_2015_MAY.tif
+    - soybeans_MD_2015_r896_c6944      # hls_soybeans_MD_2015_MAY.tif
+    - soybeans_MD_2015_r896_c7168      # hls_soybeans_MD_2015_MAY.tif
+    - soybeans_MD_2015_r896_c7392      # hls_soybeans_MD_2015_MAY.tif
+    - soybeans_MD_2015_r896_c7616      # hls_soybeans_MD_2015_MAY.tif
+
+  # --- exogenous covariates ---
+  # Soil: only 4 of the 13 POLARIS properties are merged on disk as of this
+  # writing (data_preparation/data/soil/polaris/weightedaverage_merged/) --
+  # widen this list once more properties are summarised (scripts 07/08) and
+  # merged. Weather: vpdmin/vpdmax are excluded -- they are archived to
+  # data/prism/extras/ once vpdmean is derived from them, and feeding both the
+  # derived value and its raw inputs would be redundant.
+  soil_root: ../data_preparation/data/soil/polaris/weightedaverage_merged
+  soil_vars: [clay, bd, ksat, om]
+  weather_root: ../data_preparation/data/prism/monthly
+  weather_vars: [ppt, tmean, vpdmean]
+
+norm:
+  mode: fold_training_statistics
+  target_scaling: zscore
+  inherit_init_stats: true
+  stats_max_chips: 2000
+  stats_seed: 0
+
+split:
+  policy: explicit_map
+  split_map_path: configs/splits/loyo_soybeans.yaml
+  test_year: 2024
+  val_years: [2023]
+
+model:
+  backbone_id: ibm-nasa-geospatial/Prithvi-EO-2.0-600M-TL
+  use_time_embed: true
+  use_location_embed: true
+  finetune_mode: decoder_only        # encoder frozen; decoder, heads and exo_refiner train
+  out_blocks_one_based: [8, 16, 24, 32]
+  aux_block_one_based: 24
+  temporal_reducer: attention        # MUST match farm-018 exactly
+  decoder_channels: 1024
+  ppm_bins: [1, 2, 3, 6]
+  use_auxiliary: true
+  head_dropout: 0.1
+  exogenous_refiner: true
+  exo_refiner_hidden: 16
+
+loss:
+  main: mse
+  aux_weight: 0.2
+
+train:
+  seed: 0
+  batch_size: 8
+  grad_accum: 3
+  epochs: 15
+  lr: 5.0e-6
+  min_lr: 1.0e-8
+  warmup_epochs: 2
+  weight_decay: 0.01
+  scheduler: cosine
+  grad_clip: 1.0
+  precision: 16-mixed
+  early_stopping: true
+  early_stopping_patience: 5
+  ckpt_monitor: val/main_rmse_phys
+  ckpt_mode: min
+  periodic_ckpt_every_n_epochs: 2
+  periodic_ckpt_save_top_k: -1       # keep all: farm-periodic-001, 003, ... (~3.1 GB each)
+  num_workers: 32
+  prefetch_factor: 2
+  accelerator: auto

@@ -105,6 +105,29 @@ PRISM_RAW_DIR = PRISM_DIR / "raw"
 PRISM_CLIP_DIR = PRISM_DIR / "daily_clipped"
 PRISM_MONTHLY_DIR = PRISM_DIR / "monthly"
 
+ALL_STATE_FIPS = {"IL": "17", "IA": "19", "IN": "18", "MN": "27", "NE": "31", "MO": "29", "OH": "39", "SD": "46", "ND": "38",
+                  "KS": "20", "WI": "55", "MI": "26", "MD": "24", "DE": "10", "VA": "51", "NC": "37", "PA": "42"}
+
+
+def apply_scope(states, out_root):
+    """Re-point the module-level scope: which states to clip/mask to, and where files go.
+
+    With neither option the five-state defaults above are untouched. ``--states`` REQUIRES
+    ``--out-root`` so data for another state can never land in (or overwrite) the five-state folders.
+    """
+    global EXOG_STATE_FIPS, PRISM_DIR, PRISM_RAW_DIR, PRISM_CLIP_DIR, PRISM_MONTHLY_DIR, QC_DIR
+    if states and not out_root:
+        raise SystemExit("--states needs --out-root: otherwise other-state grids would be written into the "
+                         "five-state folders (data/prism/...). Example: --states OH --out-root data/ohio")
+    if states:
+        EXOG_STATE_FIPS = {s: ALL_STATE_FIPS[s] for s in states}
+    if out_root:
+        out_root = Path(out_root).resolve()
+        PRISM_DIR = out_root / "prism"
+        PRISM_RAW_DIR, PRISM_CLIP_DIR, PRISM_MONTHLY_DIR = PRISM_DIR / "raw", PRISM_DIR / "daily_clipped", PRISM_DIR / "monthly"
+        QC_DIR = out_root / "qc"
+        print(f"scope: states={list(EXOG_STATE_FIPS)} | output root {out_root}")
+
 
 def prism_url(var: str, date_str: str) -> str:
     """``date_str`` is YYYYMMDD (daily) or YYYYMM (monthly); PRISM infers which."""
@@ -533,7 +556,12 @@ def main() -> None:
                          "sets pixels outside the true state shapes to nodata, IN PLACE, with no "
                          "re-download. Safe to run any time; already-masked files are skipped.")
     ap.add_argument("--overwrite", action="store_true")
+    ap.add_argument("--states", nargs="+", choices=sorted(ALL_STATE_FIPS), default=None,
+                    help="clip/mask to these states instead of the five study states (requires --out-root)")
+    ap.add_argument("--out-root", type=Path, default=None,
+                    help="write under this folder (prism/, qc/) instead of data/ -- never touches the default folders")
     args = ap.parse_args()
+    apply_scope(args.states, args.out_root)
 
     clip = not args.no_clip
     monthly = args.temporal == "monthly"

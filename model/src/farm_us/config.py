@@ -109,6 +109,30 @@ class DataConfig:
 
     exclude_geoids: list[str] = field(default_factory=lambda: ["24033"])  # BARC / PG County MD
 
+    #: --- Exogenous covariates (soil / weather), off by default (empty lists) ---
+    #: data_preparation/data/soil/polaris/weightedaverage_merged -- one file per
+    #: property at ``{soil_root}/{var}_0-30_weighted_average.tif`` (script 08's
+    #: output, merged into a single mosaic). Static across years, EPSG:4326,
+    #: reprojected onto each chip's own grid at read time. See
+    #: data/exogenous_readers.py:SoilReader.
+    soil_root: str = "../data_preparation/data/soil/polaris/weightedaverage_merged"
+    soil_vars: list[str] = field(default_factory=list)
+
+    #: data_preparation/data/prism/monthly -- one file per (variable, month) at
+    #: ``{weather_root}/{var}/prism_{var}_{year}{month:02d}.tif`` (script 06's
+    #: output, script 09's derived vpdmean). Monthly [W,T,H,W] maps, nearest-
+    #: sampled onto the chip grid; source-cell values are retained without
+    #: chip averaging. See data/exogenous_readers.py:WeatherSampler.
+    weather_root: str = "../data_preparation/data/prism/monthly"
+    weather_vars: list[str] = field(default_factory=list)
+
+    #: Minimum fraction of finite (non-missing) values per soil/weather variable
+    #: in the statistics pass; below it the pass raises instead of letting the
+    #: model train on mostly mean-imputed input. Missing FILES are already
+    #: refused up front (exogenous_readers.check_exogenous_files); this catches
+    #: nodata INSIDE files -- open water, coastlines, the edge of a mosaic.
+    min_exogenous_coverage: float = 0.95
+
     #: Manifest ``sample_id``s to drop before training/evaluation.
     #:
     #: Intended for chips whose imagery is physically unreadable -- a truncated
@@ -215,12 +239,31 @@ class ModelConfig:
     aux_channels: int = 256
     final_activation: str = "linear"  # linear | relu (inference-only clip)
 
-    #: Sub-token detail refinement (models/detail_refiner.py). Off by default, so
-    #: every existing config and checkpoint behaves exactly as before. Pair with
-    #: finetune_mode=refiner_only + init_from to train ONLY the new branch on top
-    #: of a trained checkpoint -- the same recipe applies at any data scale.
+    #: LEGACY sub-token detail refinement (models/detail_refiner.py). Superseded
+    #: by exogenous_refiner below, which contains this branch's entire
+    #: raw-imagery path; the two are MUTUALLY EXCLUSIVE (FarmModel raises if both
+    #: are set). Kept unmodified so the BARC refiner_only runs
+    #: (configs/experiments/barc_refiner*.yaml) stay reproducible from their
+    #: checkpoints -- that is its only remaining use. Pair with
+    #: finetune_mode=refiner_only + init_from to train ONLY this branch on top of
+    #: a trained checkpoint.
     detail_refiner: bool = False
     refiner_hidden: int = 16
+
+    #: Soil + weather + raw-imagery residual branch (models/exogenous_refiner.py).
+    #: THE branch to use for new work: it does everything detail_refiner does
+    #: (same raw full-resolution imagery, same conv stack, same zero-init output)
+    #: and additionally takes 30 m soil channels and per-chip monthly weather.
+    #: With data.soil_vars and data.weather_vars both empty it is structurally
+    #: identical to DetailRefiner, which makes that the clean image-only ablation.
+    #: Off by default. n_soil/n_weather are NOT set here -- FarmLightningModule
+    #: derives them from len(cfg.data.soil_vars)/len(cfg.data.weather_vars) so the
+    #: branch's input width stays in lockstep with what the data pipeline loads.
+    #: Pair with finetune_mode=exo_refiner_only + init_from to train ONLY this
+    #: branch on top of a frozen trained checkpoint, or leave finetune_mode at
+    #: decoder_only/full to train it jointly from scratch.
+    exogenous_refiner: bool = False
+    exo_refiner_hidden: int = 16
 
 
 @dataclass

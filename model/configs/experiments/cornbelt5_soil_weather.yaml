@@ -1,0 +1,256 @@
+# Spatial weather update: inputs are [B,3,8,224,224], nearest-neighbor PRISM
+# values at each HLS pixel; pointwise 1x1 convolutions produce spatial FiLM maps.
+# Start from farm-018; legacy chip-mean weather checkpoints/stats are incompatible.
+# No manifest rebuild or weather redownload needed. Weather tensors now occupy
+# ~4.6 MiB/chip (float32); account for this in batch/worker/prefetch memory.
+# Stage 1 of soil+weather integration: train ONLY the ExogenousRefiner branch on
+# top of the frozen farm-018 checkpoint, at county scale (5 states, 2014-2024,
+# same fold as cornbelt5_soybeans_longer.yaml). Mirrors the barc_refiner_hilr.yaml
+# recipe exactly, but for models/exogenous_refiner.py, which SUPERSEDES
+# detail_refiner.py -- it contains the same raw-imagery residual path and adds
+# soil and weather to it. The two branches are mutually exclusive; this config
+# therefore leaves detail_refiner at its default (false).
+#
+#   uv run python -m farm_us.cli train --config configs/experiments/cornbelt5_soil_weather.yaml --real \
+#     init_from=outputs/runs/cornbelt5_soybeans_longer_time/test2024/checkpoints/farm-018-0.0000.ckpt
+#
+# IMAGE-ONLY ABLATION (the control for this run). Emptying both variable lists
+# makes ExogenousRefiner structurally identical to DetailRefiner, so this
+# isolates what soil and weather add from what a sub-token residual adds at all
+# -- run it on the same fold and difference the two:
+#
+#   uv run python -m farm_us.cli train --config configs/experiments/cornbelt5_soil_weather.yaml --real \
+#     init_from=<farm-018.ckpt> data.soil_vars=[] data.weather_vars=[] \
+#     experiment_name=cornbelt5_imageonly_ablation
+#
+# That control matters here: county pseudo-labels have no soil term in them at
+# all (their within-county structure is one fixed 4-VI linear projection), so a
+# county-scale gain could come entirely from the extra sub-token capacity rather
+# than from the covariates.
+#
+# What this does and does not test
+# ---------------------------------
+# This is the FIRST arm of the comparison plan discussed for this feature: does
+# soil+weather conditioning improve county-scale prediction over farm-018 alone,
+# with the 775M base held IDENTICAL (frozen, BatchNorm/dropout in eval, same
+# guarantee refiner_only already provides for DetailRefiner)? It does NOT yet
+# test spatial generalisation -- county-scale LOYO alone cannot distinguish real
+# soil/weather signal from location memorisation (POLARIS is a static 30 m
+# raster, a far richer location fingerprint than lat/lon; see
+# docs/LOCATION_EMBEDDING_RISK.md). Before trusting a positive result here, run
+# the SAME config against configs/experiments/spatial_holdout.yaml states and
+# report the LOYO-vs-spatial-holdout gap -- that gap is the memorisation
+# measurement, not this run alone.
+#
+# What differs from cornbelt5_soybeans_longer.yaml, and why:
+#   exogenous_refiner + exo_refiner_only   the 775M base stays exactly farm-018
+#       (frozen, BatchNorm/dropout held in eval); only the small soil+weather+HLS
+#       branch trains. Zero-initialised, so at step 0 predictions equal
+#       farm-018's exactly (see models/exogenous_refiner.py's zero-init contract).
+#   norm.inherit_init_stats   a frozen base must see the normalisation it was
+#       trained with; band_mean/std and the target scaler are inherited unchanged.
+#       farm-018's norm_stats.json has no soil/weather statistics (it predates
+#       them), so train_fold computes ONLY those, from this fold's train split,
+#       via a pass that reads label + CDL + soil + weather and never HLS
+#       (training/run.py:ensure_exogenous_stats). When this run's checkpoint is
+#       later used as init_from (e.g. BARC), its soil/weather statistics are
+#       PRESERVED as long as the variable lists match -- never recomputed.
+#   norm.stats_max_chips 2000   caps that pass exactly as in
+#       cornbelt5_soybeans_longer.yaml; without it every train chip is read.
+#
+# Before launching: every soil/weather file must exist for all 11 years' Apr-Nov
+# months, or FarmDataModule refuses to start
+# (data/exogenous_readers.py:check_exogenous_files). Verified complete on
+# 2026-09-28: ppt/tmean/vpdmean each have 88 files = 8 months x 11 years (the
+# Dec-Mar months are absent and never read).
+#   lr 1e-2, weight_decay 0.0   same reasoning as barc_refiner_hilr.yaml: the
+#       branch is fresh and small, and weight decay pulls a zero-initialised
+#       output layer back toward zero as fast as it learns.
+#
+# Architecture MUST otherwise match farm-018 (temporal_reducer: attention,
+# decoder_only's frozen-encoder shape) or load_init_weights raises.
+experiment_name: cornbelt5_soil_weather
+
+data:
+  crop: SOYBEANS
+  states: [IA, IL, IN, MD, MN]
+  years: [2014, 2015, 2016, 2017, 2018, 2019, 2020, 2021, 2022, 2023, 2024]
+
+  label_variant: pseudo
+  label_units: bu_ac
+  n_timesteps: 8
+  chip_size: 224
+  stride: 224
+  missing_month_policy: temporal_interp
+
+  label_root: ../data_preparation/data/yield_labels/multistate_pseudo
+  cdl_root: ../data_preparation/data/cdl_masks
+  imagery_root: ../data_preparation/data/HLS_Composites
+  counties_path: ../data_preparation/data/county_maps/selected_states_counties_2023.gpkg
+
+  # Copied verbatim from cornbelt5_soybeans_longer.yaml -- the frozen base was
+  # trained on exactly this chip set, so the train split must match it.
+  # Chips whose HLS imagery has a corrupt DEFLATE tile -- these raise only when
+  # decoded, inside a DataLoader worker, killing the run hours in.
+  # Populated from scripts/scan_hls_corruption.py; see outputs/qc/.
+  #
+  # 2020-2024 scan (outputs/qc/hls_corruption_cornbelt5.json): 4 bad chips, IN.
+  # 2014-2024 scan (outputs/qc/hls_corruption_cornbelt5_longer.json, run
+  # 2026-08-24): 440 files / 967,352 window reads, 78 more bad chips, all in
+  # hls_soybeans_MD_2015_MAY.tif (62) and hls_soybeans_MD_2015_AUG.tif (24) --
+  # the same export batch. 0 unreadable files; nothing else in 11 years x 5
+  # states came back bad.
+  exclude_sample_ids:
+    - soybeans_IN_2021_r2464_c3360     # hls_soybeans_IN_2021_AUG.tif
+    - soybeans_IN_2021_r2464_c3584     # hls_soybeans_IN_2021_AUG.tif
+    - soybeans_IN_2022_r11648_c4928    # hls_soybeans_IN_2022_JUL.tif
+    - soybeans_IN_2022_r11648_c5152    # hls_soybeans_IN_2022_JUL.tif
+    - soybeans_MD_2015_r1120_c4256     # hls_soybeans_MD_2015_AUG.tif
+    - soybeans_MD_2015_r1120_c4480     # hls_soybeans_MD_2015_AUG.tif
+    - soybeans_MD_2015_r1120_c4704     # hls_soybeans_MD_2015_AUG.tif
+    - soybeans_MD_2015_r1120_c4928     # hls_soybeans_MD_2015_AUG.tif
+    - soybeans_MD_2015_r1120_c5152     # hls_soybeans_MD_2015_AUG.tif
+    - soybeans_MD_2015_r1120_c5824     # hls_soybeans_MD_2015_AUG.tif
+    - soybeans_MD_2015_r1120_c6048     # hls_soybeans_MD_2015_AUG.tif
+    - soybeans_MD_2015_r1120_c6272     # hls_soybeans_MD_2015_AUG.tif
+    - soybeans_MD_2015_r1792_c6272     # hls_soybeans_MD_2015_MAY.tif
+    - soybeans_MD_2015_r1792_c6496     # hls_soybeans_MD_2015_MAY.tif
+    - soybeans_MD_2015_r1792_c6944     # hls_soybeans_MD_2015_MAY.tif
+    - soybeans_MD_2015_r1792_c9408     # hls_soybeans_MD_2015_MAY.tif
+    - soybeans_MD_2015_r1792_c9632     # hls_soybeans_MD_2015_MAY.tif
+    - soybeans_MD_2015_r1792_c9856     # hls_soybeans_MD_2015_MAY.tif
+    - soybeans_MD_2015_r2016_c10304    # hls_soybeans_MD_2015_MAY.tif
+    - soybeans_MD_2015_r2016_c10528    # hls_soybeans_MD_2015_MAY.tif
+    - soybeans_MD_2015_r2016_c10752    # hls_soybeans_MD_2015_AUG.tif, hls_soybeans_MD_2015_MAY.tif
+    - soybeans_MD_2015_r2240_c10080    # hls_soybeans_MD_2015_MAY.tif
+    - soybeans_MD_2015_r2240_c10304    # hls_soybeans_MD_2015_MAY.tif
+    - soybeans_MD_2015_r2240_c10528    # hls_soybeans_MD_2015_MAY.tif
+    - soybeans_MD_2015_r2240_c10752    # hls_soybeans_MD_2015_MAY.tif
+    - soybeans_MD_2015_r2240_c5376     # hls_soybeans_MD_2015_AUG.tif, hls_soybeans_MD_2015_MAY.tif
+    - soybeans_MD_2015_r224_c9408      # hls_soybeans_MD_2015_MAY.tif
+    - soybeans_MD_2015_r224_c9632      # hls_soybeans_MD_2015_MAY.tif
+    - soybeans_MD_2015_r4032_c10528    # hls_soybeans_MD_2015_MAY.tif
+    - soybeans_MD_2015_r4032_c10752    # hls_soybeans_MD_2015_MAY.tif
+    - soybeans_MD_2015_r4032_c10976    # hls_soybeans_MD_2015_MAY.tif
+    - soybeans_MD_2015_r4032_c11200    # hls_soybeans_MD_2015_MAY.tif
+    - soybeans_MD_2015_r4256_c10080    # hls_soybeans_MD_2015_MAY.tif
+    - soybeans_MD_2015_r4256_c10528    # hls_soybeans_MD_2015_MAY.tif
+    - soybeans_MD_2015_r4256_c10752    # hls_soybeans_MD_2015_MAY.tif
+    - soybeans_MD_2015_r4256_c10976    # hls_soybeans_MD_2015_MAY.tif
+    - soybeans_MD_2015_r4256_c12320    # hls_soybeans_MD_2015_MAY.tif
+    - soybeans_MD_2015_r4256_c12768    # hls_soybeans_MD_2015_MAY.tif
+    - soybeans_MD_2015_r4256_c12992    # hls_soybeans_MD_2015_AUG.tif, hls_soybeans_MD_2015_MAY.tif
+    - soybeans_MD_2015_r4256_c8288     # hls_soybeans_MD_2015_MAY.tif
+    - soybeans_MD_2015_r4256_c9856     # hls_soybeans_MD_2015_MAY.tif
+    - soybeans_MD_2015_r4480_c10080    # hls_soybeans_MD_2015_AUG.tif, hls_soybeans_MD_2015_MAY.tif
+    - soybeans_MD_2015_r4480_c10304    # hls_soybeans_MD_2015_AUG.tif, hls_soybeans_MD_2015_MAY.tif
+    - soybeans_MD_2015_r4480_c10528    # hls_soybeans_MD_2015_AUG.tif, hls_soybeans_MD_2015_MAY.tif
+    - soybeans_MD_2015_r4480_c10752    # hls_soybeans_MD_2015_AUG.tif, hls_soybeans_MD_2015_MAY.tif
+    - soybeans_MD_2015_r4480_c10976    # hls_soybeans_MD_2015_AUG.tif, hls_soybeans_MD_2015_MAY.tif
+    - soybeans_MD_2015_r4480_c11200    # hls_soybeans_MD_2015_MAY.tif
+    - soybeans_MD_2015_r4480_c11424    # hls_soybeans_MD_2015_MAY.tif
+    - soybeans_MD_2015_r4480_c11648    # hls_soybeans_MD_2015_MAY.tif
+    - soybeans_MD_2015_r4480_c11872    # hls_soybeans_MD_2015_MAY.tif
+    - soybeans_MD_2015_r4480_c12096    # hls_soybeans_MD_2015_MAY.tif
+    - soybeans_MD_2015_r4480_c12320    # hls_soybeans_MD_2015_MAY.tif
+    - soybeans_MD_2015_r4480_c12544    # hls_soybeans_MD_2015_MAY.tif
+    - soybeans_MD_2015_r4480_c12768    # hls_soybeans_MD_2015_MAY.tif
+    - soybeans_MD_2015_r4704_c11424    # hls_soybeans_MD_2015_AUG.tif
+    - soybeans_MD_2015_r4704_c11648    # hls_soybeans_MD_2015_AUG.tif
+    - soybeans_MD_2015_r4704_c11872    # hls_soybeans_MD_2015_AUG.tif
+    - soybeans_MD_2015_r4704_c12096    # hls_soybeans_MD_2015_AUG.tif
+    - soybeans_MD_2015_r4704_c12320    # hls_soybeans_MD_2015_AUG.tif
+    - soybeans_MD_2015_r4704_c12544    # hls_soybeans_MD_2015_AUG.tif
+    - soybeans_MD_2015_r4704_c12768    # hls_soybeans_MD_2015_AUG.tif
+    - soybeans_MD_2015_r4704_c12992    # hls_soybeans_MD_2015_AUG.tif
+    - soybeans_MD_2015_r5152_c12544    # hls_soybeans_MD_2015_MAY.tif
+    - soybeans_MD_2015_r5152_c12768    # hls_soybeans_MD_2015_MAY.tif
+    - soybeans_MD_2015_r5376_c11424    # hls_soybeans_MD_2015_MAY.tif
+    - soybeans_MD_2015_r5376_c11648    # hls_soybeans_MD_2015_MAY.tif
+    - soybeans_MD_2015_r5376_c12544    # hls_soybeans_MD_2015_MAY.tif
+    - soybeans_MD_2015_r5376_c8512     # hls_soybeans_MD_2015_MAY.tif
+    - soybeans_MD_2015_r672_c7840      # hls_soybeans_MD_2015_MAY.tif
+    - soybeans_MD_2015_r672_c8064      # hls_soybeans_MD_2015_MAY.tif
+    - soybeans_MD_2015_r672_c8736      # hls_soybeans_MD_2015_MAY.tif
+    - soybeans_MD_2015_r672_c8960      # hls_soybeans_MD_2015_MAY.tif
+    - soybeans_MD_2015_r896_c10080     # hls_soybeans_MD_2015_MAY.tif
+    - soybeans_MD_2015_r896_c10304     # hls_soybeans_MD_2015_MAY.tif
+    - soybeans_MD_2015_r896_c6048      # hls_soybeans_MD_2015_MAY.tif
+    - soybeans_MD_2015_r896_c6272      # hls_soybeans_MD_2015_MAY.tif
+    - soybeans_MD_2015_r896_c6496      # hls_soybeans_MD_2015_MAY.tif
+    - soybeans_MD_2015_r896_c6720      # hls_soybeans_MD_2015_MAY.tif
+    - soybeans_MD_2015_r896_c6944      # hls_soybeans_MD_2015_MAY.tif
+    - soybeans_MD_2015_r896_c7168      # hls_soybeans_MD_2015_MAY.tif
+    - soybeans_MD_2015_r896_c7392      # hls_soybeans_MD_2015_MAY.tif
+    - soybeans_MD_2015_r896_c7616      # hls_soybeans_MD_2015_MAY.tif
+
+  # --- exogenous covariates ---
+  # Soil: only 4 of the 13 POLARIS properties are merged on disk as of this
+  # writing (data_preparation/data/soil/polaris/weightedaverage_merged/) --
+  # widen this list once more properties are summarised (scripts 07/08) and
+  # merged. Weather: vpdmin/vpdmax are excluded -- they are archived to
+  # data/prism/extras/ once vpdmean is derived from them, and feeding both the
+  # derived value and its raw inputs would be redundant.
+  soil_root: ../data_preparation/data/soil/polaris/weightedaverage_merged
+  soil_vars: [clay, bd, ksat, om]
+  weather_root: ../data_preparation/data/prism/monthly
+  weather_vars: [ppt, tmean, vpdmean]
+
+norm:
+  mode: fold_training_statistics
+  target_scaling: zscore
+  inherit_init_stats: true
+  stats_max_chips: 2000
+  stats_seed: 0
+
+split:
+  policy: explicit_map
+  split_map_path: configs/splits/loyo_soybeans.yaml
+  test_year: 2024
+  val_years: [2023]
+
+model:
+  backbone_id: ibm-nasa-geospatial/Prithvi-EO-2.0-600M-TL
+  use_time_embed: true
+  use_location_embed: true
+  finetune_mode: exo_refiner_only    # 775M frozen; only the exo_refiner branch trains
+  out_blocks_one_based: [8, 16, 24, 32]
+  aux_block_one_based: 24
+  temporal_reducer: attention        # MUST match farm-018 exactly
+  decoder_channels: 1024
+  ppm_bins: [1, 2, 3, 6]
+  use_auxiliary: true
+  head_dropout: 0.1
+  exogenous_refiner: true
+  exo_refiner_hidden: 16
+
+loss:
+  main: mse
+  aux_weight: 0.2
+
+train:
+  seed: 0
+  batch_size: 8
+  grad_accum: 1
+  # 12, not 60: the cosine in lightning_module.py spans (warmup_epochs -> epochs),
+  # so 60 left the LR at 9.5e-4 after 10 epochs -- effectively constant. The first
+  # 60-epoch run reached its val plateau (RMSE ~4.5) in epoch 1 and then wandered
+  # +-1% for 9 more epochs (6 h each). With 12, the LR ramps over epochs 0-1, then
+  # decays 1e-3 -> ~2.5e-5 over epochs 2-11. Epochs past `epochs` would run at
+  # ~min_lr, so keep epochs = warmup_epochs + intended decay length.
+  epochs: 12
+  lr: 1.0e-3
+  min_lr: 1.0e-6
+  warmup_epochs: 2
+  weight_decay: 0.0
+  scheduler: cosine
+  grad_clip: 1.0
+  precision: 16-mixed
+  early_stopping: true
+  early_stopping_patience: 15
+  ckpt_monitor: val/main_rmse_phys
+  ckpt_mode: min
+  periodic_ckpt_every_n_epochs: 10
+  num_workers: 32
+  prefetch_factor: 2
+  accelerator: auto

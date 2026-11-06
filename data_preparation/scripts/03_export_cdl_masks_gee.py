@@ -13,12 +13,14 @@ this naming convention:
 
 Prerequisites:
     earthengine authenticate
-    python scripts/03_export_cdl_masks_gee.py
+    python scripts/03_export_cdl_masks_gee.py                                   # all states, START_YEAR..END_YEAR
+    python scripts/03_export_cdl_masks_gee.py --years 2025 --states IA IL IN MD MN
 
 Monitor task progress at:
     https://code.earthengine.google.com/tasks
 """
 
+import argparse
 import sys
 import ee
 from pathlib import Path
@@ -69,9 +71,14 @@ def export_one(state: str, year: int) -> ee.batch.Task:
 
 
 def main():
+    p = argparse.ArgumentParser(description="Export CDL crop masks via Google Earth Engine.")
+    p.add_argument("--years", nargs="+", type=int, default=list(range(START_YEAR, END_YEAR + 1)))
+    p.add_argument("--states", nargs="+", default=STATE_ALPHA)
+    args = p.parse_args()
+
     ee.Initialize(project=GEE_PROJECT)
 
-    combos = [(s, y) for s in STATE_ALPHA for y in range(START_YEAR, END_YEAR + 1)]
+    combos = [(s.upper(), y) for s in args.states for y in args.years]
     print(f"Submitting {len(combos)} CDL export tasks to GEE…\n")
 
     submitted, failed = [], []

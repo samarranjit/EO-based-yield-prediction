@@ -5,9 +5,13 @@ Outputs one CSV to data/nass/ covering all target states and years.
 Set NASS_API_KEY in the environment before running.
 
     export NASS_API_KEY="your_key"
-    python scripts/01_download_nass_yield.py
+    python scripts/01_download_nass_yield.py                      # all states, START_YEAR..END_YEAR
+
+    # Only some years / states -- written to its OWN csv, never over the full one:
+    python scripts/01_download_nass_yield.py --years 2025 --states IA IL IN MD MN
 """
 
+import argparse
 import os
 import sys
 import time
@@ -82,12 +86,32 @@ def parse_yield(df: pd.DataFrame) -> pd.DataFrame:
 
 
 def main():
+    p = argparse.ArgumentParser(description="Download NASS county yields.")
+    p.add_argument("--years", nargs="+", type=int, default=list(range(START_YEAR, END_YEAR + 1)))
+    p.add_argument("--states", nargs="+", default=STATE_ALPHA)
+    p.add_argument("--out", type=Path, default=None,
+                   help="output csv (default: the full-range csv, or a per-years csv for a partial run)")
+    args = p.parse_args()
+    args.states = [st.upper() for st in args.states]
+
+    partial = args.years != list(range(START_YEAR, END_YEAR + 1)) or args.states != STATE_ALPHA
+    if args.out is None:
+        if partial:
+            ys = sorted(set(args.years))
+            tag = str(ys[0]) if len(ys) == 1 else f"{ys[0]}_{ys[-1]}"
+            args.out = NASS_CSV.parent / f"nass_{CROP_NAME.lower()}_county_yield_{tag}.csv"
+        else:
+            args.out = NASS_CSV
+    if partial and args.out.resolve() == NASS_CSV.resolve():
+        raise SystemExit(f"Refusing to overwrite the full-range csv {NASS_CSV.name} with a partial "
+                         f"download; choose a different --out.")
+
     api_key = os.environ.get("NASS_API_KEY", "")
     if not api_key:
         raise EnvironmentError("Set NASS_API_KEY environment variable before running.")
 
     records = []
-    combos = [(s, y) for s in STATE_ALPHA for y in range(START_YEAR, END_YEAR + 1)]
+    combos = [(s, y) for s in args.states for y in args.years]
     total = len(combos)
 
     for i, (state, year) in enumerate(combos, 1):
@@ -105,12 +129,13 @@ def main():
             print(f"         WARNING: {exc}")
 
     if not records:
-        raise RuntimeError("No records downloaded — check API key and crop name.")
+        raise RuntimeError("No records downloaded — check API key, crop name, and that NASS has "
+                           "published county estimates for the requested years.")
 
     df_all = pd.concat(records, ignore_index=True)
-    df_all.to_csv(NASS_CSV, index=False)
-    print(f"\nSaved {len(df_all)} records → {NASS_CSV}")
-    summary = df_all.groupby("year")["GEOID"].count().rename("counties")
+    df_all.to_csv(args.out, index=False)
+    print(f"\nSaved {len(df_all)} records → {args.out}")
+    summary = df_all.groupby(["year", "state"])["GEOID"].count().rename("counties")
     print(summary.to_string())
 
 

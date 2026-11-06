@@ -13,6 +13,7 @@ import numpy as np
 from ..config import FarmConfig, save_resolved_config
 from ..data.dataset import FarmDataModule
 from ..data.normalization import (
+    WEATHER_STATS_LAYOUT,
     NormStats,
     find_norm_stats,
     official_prithvi_stats,
@@ -65,7 +66,7 @@ def compute_fold_stats(cfg: FarmConfig, dm: FarmDataModule) -> NormStats:
     # target scaler from training labels only
     labels = []
     n_bands = len(cfg.data.band_order)
-    from ..data.normalization import StreamingBandStats
+    from ..data.normalization import ExogenousStatsAccumulator, StreamingBandStats
 
     n_total = len(train_ds)
     indices = stats_chip_indices(n_total, cfg.norm.stats_max_chips, cfg.norm.stats_seed)
@@ -78,20 +79,35 @@ def compute_fold_stats(cfg: FarmConfig, dm: FarmDataModule) -> NormStats:
         logger.info("Stats pass: reading all %d train chips", n_total)
 
     sbs = StreamingBandStats(n_bands)
+    # Soil/weather statistics come from the SAME chip read as the band statistics
+    # (no second pass), but from the RAW values the dataset emits alongside when
+    # return_raw_exogenous is set -- not from s["soil"]/s["weather"], which are
+    # already NaN-filled and would count every missing value as 0.
+    exo = (ExogenousStatsAccumulator(len(cfg.data.soil_vars), len(cfg.data.weather_vars))
+           if (cfg.data.soil_vars or cfg.data.weather_vars) else None)
+    if exo is not None:
+        train_ds.return_raw_exogenous = True
     # Progress logging matters here even though it looks cosmetic: this loop is
     # single-threaded and can run for many hours, during which the process
     # otherwise emits nothing at all and is indistinguishable from a hang.
     log_every = max(1, len(indices) // 40)
-    for done, i in enumerate(indices, start=1):
-        s = train_ds[i]
-        img = s["image"].numpy()  # [C,T,H,W]
-        m = s["mask"].numpy()[0] > 0.5
-        lab = s["label"].numpy()[0][m]
-        labels.append(lab)
-        sbs.update([img[b][:, m].ravel() for b in range(n_bands)])
-        if done % log_every == 0 or done == len(indices):
-            logger.info("Stats pass: %d/%d chips (%.0f%%)", done, len(indices),
-                        100.0 * done / len(indices))
+    try:
+        for done, i in enumerate(indices, start=1):
+            s = train_ds[i]
+            img = s["image"].numpy()  # [C,T,H,W]
+            m = s["mask"].numpy()[0] > 0.5
+            lab = s["label"].numpy()[0][m]
+            labels.append(lab)
+            sbs.update([img[b][:, m].ravel() for b in range(n_bands)])
+            if exo is not None:
+                exo.update(soil_raw=_np(s.get("soil_raw")), weather_raw=_np(s.get("weather_raw")),
+                           valid=_np(s.get("exo_valid")))
+            if done % log_every == 0 or done == len(indices):
+                logger.info("Stats pass: %d/%d chips (%.0f%%)", done, len(indices),
+                            100.0 * done / len(indices))
+    finally:
+        if exo is not None:
+            train_ds.return_raw_exogenous = False
     y = np.concatenate(labels) if labels else np.array([0.0])
     scaler = target_scaler_from_values(y, cfg.norm.target_scaling)
 
@@ -110,6 +126,122 @@ def compute_fold_stats(cfg: FarmConfig, dm: FarmDataModule) -> NormStats:
             stats_seed=cfg.norm.stats_seed if len(indices) < n_total else None,
             states=sorted(cfg.data.states),
         )
+    if exo is not None:
+        attach_exogenous_stats(cfg, stats, exo.result())
+    return stats
+
+
+def _np(t):
+    """Tensor/array/None -> ndarray/None (dataset outputs are tensors)."""
+    if t is None:
+        return None
+    return t.numpy() if hasattr(t, "numpy") else np.asarray(t)
+
+
+def attach_exogenous_stats(cfg: FarmConfig, stats: NormStats, result: dict) -> None:
+    """Write an ExogenousStatsAccumulator result onto ``stats`` -- means, stds,
+    coverage and the variable names they describe -- and enforce coverage.
+
+    Coverage below ``data.min_exogenous_coverage`` raises: past that point the
+    model would be learning mostly from mean-imputed values, and the statistics
+    themselves rest on a sample too thin to trust.
+    """
+    for group, res in result.items():
+        names = list(getattr(cfg.data, f"{group}_vars"))
+        cov = res["coverage"]
+        logger.info("%s coverage (finite fraction) in the statistics pass: %s", group,
+                    ", ".join(f"{n}={c:.3f}" for n, c in zip(names, cov, strict=True)))
+        low = [(n, c) for n, c in zip(names, cov, strict=True) if c < cfg.data.min_exogenous_coverage]
+        if low:
+            raise ValueError(
+                f"{group} coverage below data.min_exogenous_coverage="
+                f"{cfg.data.min_exogenous_coverage}: "
+                + ", ".join(f"{n}={c:.3f}" for n, c in low)
+                + ". These values would be mean-imputed for the model. Fix the input "
+                  "data, drop the variable, or lower the threshold deliberately."
+            )
+        setattr(stats, f"{group}_mean", res["mean"])
+        setattr(stats, f"{group}_std", res["std"])
+        setattr(stats, f"{group}_coverage", cov)
+        setattr(stats, f"{group}_vars", names)
+        if group == "weather":
+            stats.weather_layout = WEATHER_STATS_LAYOUT
+
+
+def compute_exogenous_stats_only(cfg: FarmConfig, dm, groups=("soil", "weather")) -> dict:
+    """Soil and/or weather statistics over THIS fold's train split, without HLS.
+
+    Reads each sampled chip through ``train_ds.exogenous_raw`` -- label window,
+    CDL mask, soil and weather only -- never the 8 monthly HLS rasters that make
+    up most of a full __getitem__. Train split only, so never a leakage path.
+    Returns an ExogenousStatsAccumulator result for the requested ``groups``.
+    """
+    from ..data.normalization import ExogenousStatsAccumulator
+
+    n_soil = len(cfg.data.soil_vars) if "soil" in groups else 0
+    n_weather = len(cfg.data.weather_vars) if "weather" in groups else 0
+    acc = ExogenousStatsAccumulator(n_soil, n_weather)
+    train_ds = dm.train_ds
+    indices = stats_chip_indices(len(train_ds), cfg.norm.stats_max_chips, cfg.norm.stats_seed)
+    logger.info("Exogenous-only stats pass (%s): %d train chips, no HLS reads",
+                "+".join(groups), len(indices))
+    log_every = max(1, len(indices) // 20)
+    for done, i in enumerate(indices, start=1):
+        raw = train_ds.exogenous_raw(i)
+        acc.update(soil_raw=raw["soil_raw"] if n_soil else None,
+                   weather_raw=raw["weather_raw"] if n_weather else None,
+                   valid=raw["exo_valid"])
+        if done % log_every == 0 or done == len(indices):
+            logger.info("Exogenous stats pass: %d/%d chips", done, len(indices))
+    return acc.result()
+
+
+def ensure_exogenous_stats(cfg: FarmConfig, dm, stats: NormStats) -> NormStats:
+    """Make ``stats`` cover the configured soil/weather variables, preserving any
+    that already do.
+
+    Per group (soil, weather):
+      * statistics present for exactly these variables, in this order -> KEPT.
+        This is what transfer needs: a checkpoint whose exogenous branch was
+        trained on these statistics must keep seeing inputs scaled the same way
+        (e.g. a county-scale model fine-tuned on BARC with its weather network
+        frozen). Recomputing them on the new data would silently shift the
+        inputs of already-trained weights.
+      * statistics absent -> COMPUTED from this fold's train split (the source
+        predates the covariate, e.g. farm-018; the branch starts from zero-init).
+      * statistics present for DIFFERENT variables or order -> RAISE. Neither
+        reusing (wrong channel scaling) nor recomputing (would disagree with any
+        branch weights loaded alongside) is safe to choose silently.
+    """
+    missing = []
+    for group in ("soil", "weather"):
+        names = list(getattr(cfg.data, f"{group}_vars"))
+        if not names:
+            continue
+        mean = getattr(stats, f"{group}_mean", None)
+        if mean is None:
+            missing.append(group)
+            continue
+        recorded = getattr(stats, f"{group}_vars", None)
+        if recorded is None or list(recorded) != names or len(mean) != len(names):
+            raise ValueError(
+                f"The loaded normalization statistics carry {group} statistics for "
+                f"{recorded!r}, but data.{group}_vars={names}. Refusing to reuse them "
+                f"(channels would be scaled by another variable's statistics) and "
+                f"refusing to recompute them (a transferred {group} branch was trained "
+                f"on the originals). Match data.{group}_vars to the source run, or train "
+                f"the branch fresh without inherit_init_stats / reuse_stats_from."
+            )
+        if group == "weather" and stats.weather_layout != WEATHER_STATS_LAYOUT:
+            raise ValueError(
+                "Refusing legacy chip-mean weather statistics: spatial weather requires "
+                "training-pixel statistics. Start the new branch from farm-018."
+            )
+        logger.info("Keeping loaded %s normalization statistics for %s", group, names)
+    if missing:
+        logger.warning("Loaded statistics have no %s statistics -- computing them from "
+                       "this fold's train split", "+".join(missing))
+        attach_exogenous_stats(cfg, stats, compute_exogenous_stats_only(cfg, dm, tuple(missing)))
     return stats
 
 
@@ -182,28 +314,37 @@ def load_or_compute_fold_stats(cfg: FarmConfig, dm: FarmDataModule, fold) -> Nor
     return stats
 
 
+#: Prefixes allowed to be MISSING from an init_from source checkpoint -- i.e.
+#: branches that may be newly added on top of an older checkpoint, whose
+#: zero-initialised weights make the model start out identical to the source
+#: regardless. Add a new prefix here (and nowhere else) if a future branch
+#: follows the same zero-init contract; never loosen the check for any other
+#: reason -- see load_init_weights' docstring.
+_ALLOWED_MISSING_PREFIXES = ("model.refiner.", "model.exo_refiner.")
+
+
 def load_init_weights(lm: FarmLightningModule, path: str) -> None:
     """Copy weights from checkpoint ``path`` into ``lm`` (weight-only transfer init).
 
-    Non-strict in exactly one way: tensors of a newly added DetailRefiner may be
-    absent from the source checkpoint -- they keep their zero-initialised output,
-    so the model starts out identical to the source. Any other missing key, or any
-    unexpected key, is an architecture mismatch and raises; skipping those
-    silently would train a partly random model while the logs claim it came from
-    ``path``.
+    Non-strict in exactly one way: tensors of a newly added DetailRefiner or
+    ExogenousRefiner may be absent from the source checkpoint -- they keep their
+    zero-initialised output, so the model starts out identical to the source. Any
+    other missing key, or any unexpected key, is an architecture mismatch and
+    raises; skipping those silently would train a partly random model while the
+    logs claim it came from ``path``.
     """
     import torch
 
     state = torch.load(path, map_location="cpu", weights_only=False)["state_dict"]
     missing, unexpected = lm.load_state_dict(state, strict=False)
-    other = [k for k in missing if not k.startswith("model.refiner.")]
+    other = [k for k in missing if not k.startswith(_ALLOWED_MISSING_PREFIXES)]
     if other or unexpected:
         raise RuntimeError(
             f"init_from={path} does not match the configured architecture -- "
             f"missing: {other[:5]}, unexpected: {list(unexpected)[:5]}"
         )
     if missing:
-        logger.warning("init_from: %d DetailRefiner tensor(s) absent from %s -- starting "
+        logger.warning("init_from: %d new-branch tensor(s) absent from %s -- starting "
                        "from the zero-initialised branch", len(missing), path)
 
 
@@ -236,10 +377,12 @@ def train_fold(cfg: FarmConfig, use_dummy: bool = True, dummy_embed_dim: int = 3
             "(optimiser state restored), the other starts a new run from "
             "borrowed weights (optimiser fresh). See train_fold's docstring."
         )
-    if init_from and cfg.model.finetune_mode == "refiner_only" and not cfg.norm.inherit_init_stats:
+    if (init_from and cfg.model.finetune_mode in ("refiner_only", "exo_refiner_only")
+            and not cfg.norm.inherit_init_stats):
         raise ValueError(
-            "finetune_mode=refiner_only with init_from requires norm.inherit_init_stats=true: "
-            "the frozen model must be fed the normalisation it was trained with."
+            f"finetune_mode={cfg.model.finetune_mode} with init_from requires "
+            "norm.inherit_init_stats=true: the frozen model must be fed the "
+            "normalisation it was trained with."
         )
 
     seed_everything(cfg.train.seed)
@@ -258,6 +401,12 @@ def train_fold(cfg: FarmConfig, use_dummy: bool = True, dummy_embed_dim: int = 3
         logger.warning("INHERITED normalisation from %s (the init checkpoint's own statistics)", src)
     else:
         stats = load_or_compute_fold_stats(cfg, dm, fold)
+    # Soil/weather statistics, whichever way `stats` was obtained: keep them when
+    # they already describe exactly the configured variables (a transferred
+    # exogenous branch must keep its input scaling), compute only groups that are
+    # absent, raise on a mismatch. See ensure_exogenous_stats.
+    if cfg.data.soil_vars or cfg.data.weather_vars:
+        stats = ensure_exogenous_stats(cfg, dm, stats)
     dm.apply_norm_stats(stats)
 
     out_dir = Path(cfg.train.output_dir) / cfg.experiment_name / f"test{fold.test_year}"

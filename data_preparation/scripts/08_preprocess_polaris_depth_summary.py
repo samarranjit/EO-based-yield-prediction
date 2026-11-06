@@ -66,6 +66,17 @@ POLARIS_DIR = DATA_DIR / "soil" / "polaris"
 POLARIS_RAW_DIR = POLARIS_DIR / "raw"
 POLARIS_SUMMARY_DIR = POLARIS_DIR / "weighted_average"
 
+
+def apply_scope(out_root):
+    """Read raw tiles from / write summaries under ``out_root`` (e.g. data/ohio) instead of data/."""
+    global POLARIS_DIR, POLARIS_RAW_DIR, POLARIS_SUMMARY_DIR, QC_DIR
+    if out_root:
+        out_root = Path(out_root).resolve()
+        POLARIS_DIR = out_root / "soil" / "polaris"
+        POLARIS_RAW_DIR, POLARIS_SUMMARY_DIR = POLARIS_DIR / "raw", POLARIS_DIR / "weighted_average"
+        QC_DIR = out_root / "qc"
+        print(f"scope: output root {out_root}")
+
 # Physically plausible ranges for the SUMMARY product, in linear units -- a unit
 # tripwire, not a scientific filter. `om`'s ceiling is 100 (not ~60) because
 # organic soils (peat/histosols) genuinely reach 80-100% and Minnesota has
@@ -320,6 +331,38 @@ def build_vrt(props: list[str]) -> None:
         print(f"  {vrt.name}  ({len(tiles)} tiles)")
 
 
+def build_mosaics(props: list[str]) -> None:
+    """One GeoTIFF per property from its summary tiles: <prop>_<top>-<bottom>_weighted_average.tif.
+
+    Same encoding as the five-state mosaics the model reads (float32, nodata -9999, deflate, 256 tiles, band
+    description carried over from the tiles). Written to ``weightedaverage_merged/`` next to ``weighted_average/``.
+    """
+    import rasterio
+    from rasterio.merge import merge
+
+    out_dir = POLARIS_DIR / "weightedaverage_merged"
+    out_dir.mkdir(parents=True, exist_ok=True)
+    for prop in props:
+        tiles = sorted((POLARIS_SUMMARY_DIR / prop).glob("*.tif"))
+        if not tiles:
+            continue
+        srcs = [rasterio.open(t) for t in tiles]
+        try:
+            used = [d for d in srcs[0].tags().get("polaris_depths_used", "").split(",") if d]
+            span = f"{used[0].split('_')[0]}-{used[-1].split('_')[1]}" if used else "0-30"
+            mosaic, transform = merge(srcs, nodata=NODATA_OUT)
+            out = out_dir / f"{prop}_{span}_weighted_average.tif"
+            with rasterio.open(out, "w", driver="GTiff", dtype="float32", nodata=NODATA_OUT, width=mosaic.shape[2],
+                               height=mosaic.shape[1], count=1, crs=srcs[0].crs, transform=transform, tiled=True,
+                               blockxsize=256, blockysize=256, compress="deflate") as dst:
+                dst.write(mosaic[0].astype("float32"), 1)
+                dst.set_band_description(1, srcs[0].descriptions[0])
+            print(f"  {out.name}  {mosaic.shape[2]}x{mosaic.shape[1]} px  from {len(tiles)} tiles")
+        finally:
+            for s in srcs:
+                s.close()
+
+
 def main() -> None:
     ap = argparse.ArgumentParser(description="POLARIS depth summary, log-aware.")
     ap.add_argument("--workers", type=int, default=DEFAULT_WORKERS)
@@ -331,8 +374,12 @@ def main() -> None:
     ap.add_argument("--estimate", action="store_true")
     ap.add_argument("--validate", action="store_true", help="physical-range QC and exit")
     ap.add_argument("--vrt", action="store_true", help="also build a per-property VRT mosaic")
+    ap.add_argument("--mosaic", action="store_true", help="also merge each property's tiles into one GeoTIFF (what the model reads)")
+    ap.add_argument("--out-root", type=Path, default=None,
+                    help="use this folder (soil/polaris/raw in, weighted_average out) instead of data/")
     ap.add_argument("--overwrite", action="store_true")
     args = ap.parse_args()
+    apply_scope(args.out_root)
 
     props = args.props
     if props is None:
@@ -393,6 +440,9 @@ def main() -> None:
     if args.vrt:
         print("\nbuilding VRT mosaics:")
         build_vrt(props)
+    if args.mosaic:
+        print("\nbuilding merged GeoTIFF mosaics:")
+        build_mosaics(props)
 
     print("\nNext: python scripts/08_preprocess_polaris_depth_summary.py --validate")
 

@@ -180,20 +180,19 @@ def scatter(merged: pd.DataFrame, out_png: Path, title: str, units: str,
     d = merged.dropna(subset=["nass"])
     d = d[d["n_pixels"] >= min_pixels]
     fig, ax = plt.subplots(figsize=(6.2, 6.2))
-    # NASS on the y axis, raster on x. Note the reading this implies: a point
-    # ABOVE the 1:1 line is a county where NASS exceeds the raster, i.e. the
-    # raster UNDER-estimates. `bias` below is still raster - NASS (the error of
-    # the thing being evaluated), so a positive bias shows as points sitting
-    # predominantly BELOW the line.
-    ax.scatter(d["mean"], d["nass"], s=26, alpha=0.75, edgecolor="none")
+    # Raster on the y axis, NASS on x. A point ABOVE the 1:1 line is a county
+    # where the raster exceeds NASS, i.e. the raster OVER-estimates, which
+    # matches `bias` below (raster - NASS): a positive bias shows as points
+    # sitting predominantly ABOVE the line.
+    ax.scatter(d["nass"], d["mean"], s=26, alpha=0.75, edgecolor="none")
     lo = float(min(d["nass"].min(), d["mean"].min()))
     hi = float(max(d["nass"].max(), d["mean"].max()))
     pad = 0.04 * (hi - lo if hi > lo else 1.0)
     ax.plot([lo - pad, hi + pad], [lo - pad, hi + pad], lw=1, ls="--", color="0.4", label="1:1")
     ax.set_xlim(lo - pad, hi + pad)
     ax.set_ylim(lo - pad, hi + pad)
-    ax.set_xlabel(f"Raster county mean ({units})")
-    ax.set_ylabel(f"NASS county yield ({units})")
+    ax.set_xlabel(f"NASS county yield ({units})")
+    ax.set_ylabel(f"Raster county mean ({units})")
     ax.set_title(title, fontsize=11)
     ax.legend(loc="upper left", frameon=False)
     txt = (f"n = {m['n_counties']} counties\nbias = {m['bias']:+.2f}  (raster − NASS)\n"

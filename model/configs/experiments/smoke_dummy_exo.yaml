@@ -1,0 +1,28 @@
+# Fast CPU smoke config: exercises ExogenousRefiner (soil + weather + HLS
+# residual) end to end -- train -> checkpoint -> evaluate, dummy backbone,
+# synthetic soil/weather data. Mirrors smoke_dummy.yaml exactly except for the
+# model/data blocks below. Use to sanity-check pipeline changes to the
+# exogenous-refiner path before touching real data or the real backbone.
+experiment_name: smoke_dummy_exo_spatial
+data:
+  n_timesteps: 8
+  # Names only matter for their COUNT here (synthetic path fabricates the
+  # arrays) -- on the real-data path these must match actual downloaded
+  # POLARIS properties / PRISM variables (see model/docs/DATA_CONTRACT.md
+  # and data/exogenous_readers.py).
+  soil_vars: [clay, bd, ksat, om]
+  weather_vars: [ppt, tmean, vpdmean]
+model:
+  exogenous_refiner: true
+  exo_refiner_hidden: 16
+train:
+  epochs: 1
+  batch_size: 2
+  num_workers: 0
+  precision: 32
+  warmup_epochs: 0
+  accelerator: cpu   # MPS lacks non-divisible adaptive-pool (PPM bins); CUDA is fine
+split:
+  policy: explicit_map
+  test_year: 2018
+  val_years: [2017]
